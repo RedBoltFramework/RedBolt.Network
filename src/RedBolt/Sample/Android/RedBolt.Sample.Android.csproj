@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>RedBolt.Network.Sample.Android</AssemblyName>
+    <ApplicationId>org.redbolt.network.samples</ApplicationId>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../Network/RedBolt.Network.csproj" />
+    <ProjectReference Include="$(RedBoltRoot)/src/RedBolt/DearImGui/RedBolt.DearImGui.csproj" />
+    <Compile Include="../Chat/**/*.cs;../HttpRequestDemo/**/*.cs;../LANDiscovery/**/*.cs" Link="Samples/%(RecursiveDir)%(Filename)%(Extension)" />
+  </ItemGroup>
+  <Import Project="$(RedBoltRoot)/src/RedBolt/Build/AndroidSample.targets" />
+</Project>

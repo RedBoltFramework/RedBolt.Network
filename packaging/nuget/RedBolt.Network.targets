@@ -1,0 +1,5 @@
+<Project>
+  <PropertyGroup Condition="'$(RedBoltPlatform)' == 'browser-wasm'">
+    <RedBoltWebExtensionScript>$(MSBuildThisFileDirectory)RedBolt.Network/extension.js</RedBoltWebExtensionScript>
+  </PropertyGroup>
+</Project>

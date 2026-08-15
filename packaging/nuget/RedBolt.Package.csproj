@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RedBoltExternalPackageProjectUrl>https://github.com/RedBoltFramework/RedBolt.Network</RedBoltExternalPackageProjectUrl>
+    <RedBoltExternalPackageRepositoryUrl>https://github.com/RedBoltFramework/RedBolt.Network.git</RedBoltExternalPackageRepositoryUrl>
+    <RedBoltExternalPackageTags>RedBolt game-engine csharp dotnet networking replication webrtc</RedBoltExternalPackageTags>
+  </PropertyGroup>
+  <Import Project="../../../RedBolt/src/RedBolt/Build/NuGetPackage.targets" />
+</Project>

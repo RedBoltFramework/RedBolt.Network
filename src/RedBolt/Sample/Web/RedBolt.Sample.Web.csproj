@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk.WebAssembly">
+  <ItemGroup>
+    <ProjectReference Include="../../Network/RedBolt.Network.csproj" />
+    <ProjectReference Include="$(RedBoltRoot)/src/RedBolt/DearImGui/RedBolt.DearImGui.csproj" />
+    <Compile Include="../Chat/**/*.cs;../HttpRequestDemo/**/*.cs;../LANDiscovery/**/*.cs" Link="Samples/%(RecursiveDir)%(Filename)%(Extension)" />
+    <TrimmerRootAssembly Include="RedBolt.Network" />
+  </ItemGroup>
+  <Import Project="$(RedBoltRoot)/src/RedBolt/Build/WebSample.targets" />
+</Project>

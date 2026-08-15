@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk" TreatAsLocalProperty="RedBoltTargetFramework;TargetFramework">
+  <PropertyGroup>
+    <RedBoltTargetFramework>net10.0</RedBoltTargetFramework>
+    <TargetFramework>$(RedBoltTargetFramework)</TargetFramework>
+    <UseAppHost>false</UseAppHost>
+    <AssemblyName>RedBolt.Network.Generator.Dependencies</AssemblyName>
+    <OutputType>Exe</OutputType>
+    <OutputPath>$(RedBoltHostToolsOutputDir)/</OutputPath>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <BuildInParallel>false</BuildInParallel>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="$(RedBoltSharpCppRoot)/src/SharpCpp.Model/SharpCpp.Model.csproj"
+                      AdditionalProperties="$(RedBoltSharpCppManagedProperties)" />
+    <ProjectReference Include="$(RedBoltSharpCppRoot)/src/SharpCpp.Metadata/SharpCpp.Metadata.csproj"
+                      AdditionalProperties="$(RedBoltSharpCppManagedProperties)" />
+    <ProjectReference Include="$(RedBoltSharpCppRoot)/src/SharpCpp.Parsing/SharpCpp.Parsing.csproj"
+                      AdditionalProperties="$(RedBoltSharpCppManagedProperties)" />
+    <ProjectReference Include="$(RedBoltSharpCppRoot)/src/SharpCpp.Pipeline/SharpCpp.Pipeline.csproj"
+                      AdditionalProperties="$(RedBoltSharpCppManagedProperties)" />
+    <ProjectReference Include="$(RedBoltSharpCppRoot)/src/SharpCpp.Rendering/SharpCpp.Rendering.csproj"
+                      AdditionalProperties="$(RedBoltSharpCppManagedProperties)" />
+    <ProjectReference Include="$(RedBoltSharpCppRoot)/src/SharpCpp.Support/SharpCpp.Support.csproj"
+                      AdditionalProperties="$(RedBoltSharpCppManagedProperties)" />
+  </ItemGroup>
+</Project>
