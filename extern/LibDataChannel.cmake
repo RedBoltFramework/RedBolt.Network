@@ -16,8 +16,7 @@ target_compile_options(juice PRIVATE
 target_compile_options(juice-static PRIVATE
     "$<$<COMPILE_LANG_AND_ID:C,GNU,Clang,AppleClang>:-std=gnu11>")
 target_compile_options(datachannel-static PRIVATE
-    "$<$<COMPILE_LANG_AND_ID:CXX,GNU,Clang,AppleClang>:-include>"
-    "$<$<COMPILE_LANG_AND_ID:CXX,GNU,Clang,AppleClang>:stdexcept>")
+    "$<$<COMPILE_LANG_AND_ID:CXX,GNU,Clang,AppleClang>:SHELL:-include stdexcept -include algorithm>")
 
 set(REDBOLT_LIBDATACHANNEL_INCLUDE_DIR
     "${libdatachannel_SOURCE_DIR}/include"
