@@ -48,9 +48,7 @@ unset(CPM_VERSION CACHE)
 include("${REDBOLT_ROOT}/cmake/CPM.cmake")
 set(FETCHCONTENT_BASE_DIR "${CMAKE_BINARY_DIR}/deps")
 
-set(SHARPCPP_BUILD_E2E OFF CACHE BOOL "Build SharpCpp E2E" FORCE)
-set(SHARPCPP_BUILD_RBFX OFF CACHE BOOL "Build SharpCpp rbfx bindings" FORCE)
-add_subdirectory("${REDBOLT_SHARPCPP_ROOT}" "${CMAKE_BINARY_DIR}/deps/SharpCpp" EXCLUDE_FROM_ALL)
+include("${REDBOLT_ROOT}/cmake/RedBoltSharpCpp.cmake")
 include(extern/OpenSSL.cmake)
 include(extern/LibDataChannel.cmake)
 
@@ -74,7 +72,6 @@ elseif(CMAKE_BUILD_TYPE MATCHES "^(Release|Distribution|ReleaseASAN|ReleaseUBSAN
     list(APPEND REDBOLT_BINDING_DEFINES NDEBUG)
 endif()
 
-include("${REDBOLT_ROOT}/cmake/RedBoltSharpCpp.cmake")
 add_subdirectory(src/RedBolt/Generator/Dependencies)
 add_subdirectory(src/RedBolt/Native/LibDataChannel)
 

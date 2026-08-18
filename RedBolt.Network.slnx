@@ -5,26 +5,23 @@ For a copy, see <https://opensource.org/licenses/MIT> or the accompanying LICENS
 -->
 
 <Solution>
-  <Folder Name="/src/RedBolt/Build/">
-    <Project Path="src/RedBolt/Build/RedBolt.Network.Build.csproj" />
-  </Folder>
   <Folder Name="/src/RedBolt/">
-    <Project Path="src/RedBolt/Network/RedBolt.Network.csproj"><Build Project="false" /></Project>
+    <Project Path="src/RedBolt/Network/RedBolt.Network.csproj" />
   </Folder>
   <Folder Name="/src/RedBolt/Generator/">
-    <Project Path="src/RedBolt/Generator/Dependencies/RedBolt.Network.Generator.Dependencies.csproj"><Build Project="false" /></Project>
+    <Project Path="src/RedBolt/Generator/Dependencies/RedBolt.Network.Generator.Dependencies.csproj" />
   </Folder>
   <Folder Name="/src/RedBolt/Native/">
-    <Project Path="src/RedBolt/Native/LibDataChannel/RedBolt.Bindings.LibDataChannel.csproj"><Build Project="false" /></Project>
-    <Project Path="src/RedBolt/Native/RedBolt.Network.Native.csproj"><Build Project="false" /></Project>
-    <Project Path="src/RedBolt/Native/RedBolt.Network.Native.Android.csproj"><Build Project="false" /></Project>
+    <Project Path="src/RedBolt/Native/LibDataChannel/RedBolt.Bindings.LibDataChannel.csproj" />
+    <Project Path="src/RedBolt/Native/RedBolt.Network.Native.csproj" />
+    <Project Path="src/RedBolt/Native/RedBolt.Network.Native.Android.csproj" />
   </Folder>
   <Folder Name="/src/RedBolt/Sample/">
-    <Project Path="src/RedBolt/Sample/Chat/RedBolt.Sample.Chat.csproj"><Build Project="false" /></Project>
-    <Project Path="src/RedBolt/Sample/HttpRequestDemo/RedBolt.Sample.HttpRequestDemo.csproj"><Build Project="false" /></Project>
-    <Project Path="src/RedBolt/Sample/LANDiscovery/RedBolt.Sample.LANDiscovery.csproj"><Build Project="false" /></Project>
-    <Project Path="src/RedBolt/Sample/WebRTCSTUN/RedBolt.Sample.WebRTCSTUN.csproj"><Build Project="false" /></Project>
-    <Project Path="src/RedBolt/Sample/Web/RedBolt.Sample.Web.csproj"><Build Project="false" /></Project>
-    <Project Path="src/RedBolt/Sample/Android/RedBolt.Sample.Android.csproj"><Build Project="false" /></Project>
+    <Project Path="src/RedBolt/Sample/Chat/RedBolt.Sample.Chat.csproj" />
+    <Project Path="src/RedBolt/Sample/HttpRequestDemo/RedBolt.Sample.HttpRequestDemo.csproj" />
+    <Project Path="src/RedBolt/Sample/LANDiscovery/RedBolt.Sample.LANDiscovery.csproj" />
+    <Project Path="src/RedBolt/Sample/WebRTCSTUN/RedBolt.Sample.WebRTCSTUN.csproj" />
+    <Project Path="src/RedBolt/Sample/Web/RedBolt.Sample.Web.csproj" />
+    <Project Path="src/RedBolt/Sample/Android/RedBolt.Sample.Android.csproj" />
   </Folder>
 </Solution>
