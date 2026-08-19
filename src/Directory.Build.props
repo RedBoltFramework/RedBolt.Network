@@ -27,7 +27,7 @@ For a copy, see <https://opensource.org/licenses/MIT> or the accompanying LICENS
   </PropertyGroup>
   <Import Project="$(RedBoltRoot)/src/RedBolt/Build/Directory.Build.props" />
   <PropertyGroup>
-    <RedBoltExternalAndroidNativeOutput>$(RedBoltNetworkRoot)/build/bin/$(Configuration)/$(RedBoltPlatform)/extern/runtimes/$(RedBoltPlatform)/native</RedBoltExternalAndroidNativeOutput>
+    <RedBoltExternalAndroidNativeOutput>$(RedBoltNativeOutputRoot)</RedBoltExternalAndroidNativeOutput>
     <RedBoltExternalModuleEnabled>$(RedBoltNetworkEnabled)</RedBoltExternalModuleEnabled>
   </PropertyGroup>
 </Project>
