@@ -11,5 +11,5 @@ For a copy, see <https://opensource.org/licenses/MIT> or the accompanying LICENS
     <Compile Include="../Chat/**/*.cs;../HttpRequestDemo/**/*.cs;../LANDiscovery/**/*.cs" Link="Samples/%(RecursiveDir)%(Filename)%(Extension)" />
     <TrimmerRootAssembly Include="RedBolt.Network" />
   </ItemGroup>
-  <Import Project="$(RedBoltRoot)/src/RedBolt/Build/WebSample.targets" />
+  <Import Project="$(RedBoltRoot)/eng/RedBolt.ModuleBuild/WebSample.targets" />
 </Project>

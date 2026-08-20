@@ -13,8 +13,6 @@ For a copy, see <https://opensource.org/licenses/MIT> or the accompanying LICENS
   </Folder>
   <Folder Name="/src/RedBolt/Native/">
     <Project Path="src/RedBolt/Native/LibDataChannel/RedBolt.Bindings.LibDataChannel.csproj" />
-    <Project Path="src/RedBolt/Native/RedBolt.Network.Native.csproj" />
-    <Project Path="src/RedBolt/Native/RedBolt.Network.Native.Android.csproj" />
   </Folder>
   <Folder Name="/src/RedBolt/Sample/">
     <Project Path="src/RedBolt/Sample/Chat/RedBolt.Sample.Chat.csproj" />

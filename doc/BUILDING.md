@@ -11,7 +11,7 @@ RedBolt.Tests/
 Build the Linux x64 networking module and native libdatachannel wrapper:
 
 ```sh
-dotnet build src/RedBolt/Native/RedBolt.Network.Native.csproj --configuration Debug
+dotnet build src/RedBolt/Native/LibDataChannel/RedBolt.Bindings.LibDataChannel.csproj --configuration Debug
 dotnet build src/RedBolt/Network/RedBolt.Network.csproj --configuration Debug
 ```
 

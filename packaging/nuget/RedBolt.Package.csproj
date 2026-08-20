@@ -10,5 +10,5 @@ For a copy, see <https://opensource.org/licenses/MIT> or the accompanying LICENS
     <RedBoltExternalPackageRepositoryUrl>https://github.com/RedBoltFramework/RedBolt.Network.git</RedBoltExternalPackageRepositoryUrl>
     <RedBoltExternalPackageTags>RedBolt game-engine csharp dotnet networking replication webrtc</RedBoltExternalPackageTags>
   </PropertyGroup>
-  <Import Project="../../../RedBolt/src/RedBolt/Build/NuGetPackage.targets" />
+  <Import Project="../../../RedBolt/eng/RedBolt.ModuleBuild/NuGetPackage.targets" />
 </Project>

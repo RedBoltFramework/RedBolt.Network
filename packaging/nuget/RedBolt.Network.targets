@@ -5,6 +5,10 @@ For a copy, see <https://opensource.org/licenses/MIT> or the accompanying LICENS
 -->
 
 <Project>
+  <!--
+    Consumed by the Network NuGet package. When a consumer builds for browser-wasm, this points the
+    web sample build at the extension script shipped inside the package instead of the core default.
+  -->
   <PropertyGroup Condition="'$(RedBoltPlatform)' == 'browser-wasm'">
     <RedBoltWebExtensionScript>$(MSBuildThisFileDirectory)RedBolt.Network/extension.js</RedBoltWebExtensionScript>
   </PropertyGroup>

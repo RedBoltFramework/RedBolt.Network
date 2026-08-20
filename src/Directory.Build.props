@@ -5,29 +5,29 @@ For a copy, see <https://opensource.org/licenses/MIT> or the accompanying LICENS
 -->
 
 <Project>
+  <!--
+    Module project evaluation. Native module with a generator, an Android native project, and a
+    custom web extension script.
+  -->
   <PropertyGroup>
     <RedBoltNetworkRoot>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..'))</RedBoltNetworkRoot>
     <RedBoltRoot Condition="'$(RedBoltRoot)' == ''">$([System.IO.Path]::GetFullPath('$(RedBoltNetworkRoot)/../RedBolt'))</RedBoltRoot>
-    <RedBoltDearImGuiEnabled>true</RedBoltDearImGuiEnabled>
     <RedBoltExternalModuleRoot>$(RedBoltNetworkRoot)</RedBoltExternalModuleRoot>
     <RedBoltExternalModuleName>RedBolt.Network</RedBoltExternalModuleName>
     <RedBoltExternalGeneratorProjectName>RedBolt.Network.Generator.Dependencies</RedBoltExternalGeneratorProjectName>
     <RedBoltExternalGeneratorProjectPrefix>RedBolt.Network.Generator.</RedBoltExternalGeneratorProjectPrefix>
-    <RedBoltExternalNativeAndroidProjectName>RedBolt.Network.Native.Android</RedBoltExternalNativeAndroidProjectName>
-    <RedBoltExternalModuleProjectNames>RedBolt.Network;RedBolt.Bindings.LibDataChannel</RedBoltExternalModuleProjectNames>
     <RedBoltExternalGeneratedBindingsDirectory>redbolt-network-native</RedBoltExternalGeneratedBindingsDirectory>
     <RedBoltExternalBindingsSubdirectory>libdatachannel</RedBoltExternalBindingsSubdirectory>
     <RedBoltExternalBindingsProjectName>RedBolt.Bindings.LibDataChannel</RedBoltExternalBindingsProjectName>
     <RedBoltExternalHasNative>true</RedBoltExternalHasNative>
+    <RedBoltExternalWebNativeEnabled>false</RedBoltExternalWebNativeEnabled>
     <RedBoltExternalNativeTargetPrefix>redbolt-network</RedBoltExternalNativeTargetPrefix>
     <RedBoltExternalEnabledNativeModules>LIBDATACHANNEL</RedBoltExternalEnabledNativeModules>
     <RedBoltExternalDesktopResourceRoot>$(RedBoltRoot)</RedBoltExternalDesktopResourceRoot>
-    <RedBoltExternalAndroidNativeProject>$(RedBoltNetworkRoot)/src/RedBolt/Native/RedBolt.Network.Native.Android.csproj</RedBoltExternalAndroidNativeProject>
     <RedBoltWebExtensionScript>$(RedBoltNetworkRoot)/src/RedBolt/Sample/Web/wwwroot/extension.js</RedBoltWebExtensionScript>
   </PropertyGroup>
-  <Import Project="$(RedBoltRoot)/src/RedBolt/Build/Directory.Build.props" />
+  <Import Project="$(RedBoltRoot)/eng/RedBolt.ModuleBuild/Directory.Build.props" />
   <PropertyGroup>
     <RedBoltExternalAndroidNativeOutput>$(RedBoltNativeOutputRoot)</RedBoltExternalAndroidNativeOutput>
-    <RedBoltExternalModuleEnabled>$(RedBoltNetworkEnabled)</RedBoltExternalModuleEnabled>
   </PropertyGroup>
 </Project>
