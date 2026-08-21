@@ -1,0 +1,21 @@
+{
+  "name": "RedBolt.Network",
+  "applicationId": "org.redbolt.network.samples",
+  "web": true,
+  "android": true,
+  "native": true,
+  "webNative": false,
+  "projectReferences": [
+    "src/RedBolt/Network/RedBolt.Network.csproj",
+    "../RedBolt/src/RedBolt/DearImGui/RedBolt.DearImGui.csproj"
+  ],
+  "webExtension": "src/RedBolt/Sample/Web/wwwroot/extension.js",
+  "trimmerRootAssemblies": [
+    "RedBolt.Network"
+  ],
+  "samples": [
+    { "id": "chat", "name": "Chat", "applicationType": "RedBolt.Sample.Chat.Chat", "source": "Chat" },
+    { "id": "http-request", "name": "HTTP Request", "applicationType": "RedBolt.Sample.HttpRequestDemo.HttpRequestDemo", "source": "HttpRequestDemo" },
+    { "id": "lan-discovery", "name": "LAN Discovery", "applicationType": "RedBolt.Sample.LANDiscovery.LANDiscovery", "source": "LANDiscovery" }
+  ]
+}
