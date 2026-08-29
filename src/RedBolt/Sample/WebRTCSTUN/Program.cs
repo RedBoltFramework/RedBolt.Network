@@ -13,11 +13,13 @@ using System.Text.Json;
 
 using RedBolt.Bindings.DearImGui;
 using RedBolt.Bindings.LibDataChannel;
+using RedBolt.Container;
 using RedBolt.Core;
 using RedBolt.DearImGui;
 using RedBolt.Engine;
 using RedBolt.IO;
 using RedBolt.Input;
+using RedBolt.Math;
 using RedBolt.Network;
 
 using static RedBolt.Bindings.LibDataChannel.LibDataChannel;
@@ -84,7 +86,7 @@ public sealed class WebRTCSTUN : Application
         _textBuffer = Marshal.AllocHGlobal(InputBufferSize);
         Marshal.WriteByte(_textBuffer, 0, 0);
         for (var i = 0; i < 38; ++i)
-            _chatHistory.Add(string.Empty);
+            _chatHistory.Add(new CString());
 
         SubscribeToEvent<DearImGuiEvents.EndRenderingDearImGuiEvent>(
             (ref DearImGuiEvents.EndRenderingDearImGuiEvent _) => Draw());
@@ -123,6 +125,9 @@ public sealed class WebRTCSTUN : Application
         _clientConnection = null;
         _server?.Dispose();
         _server = null;
+        foreach (var row in _chatHistory)
+            row.Dispose();
+        _chatHistory.Clear();
         if (_textBuffer != IntPtr.Zero)
         {
             Marshal.FreeHGlobal(_textBuffer);
@@ -133,57 +138,221 @@ public sealed class WebRTCSTUN : Application
 
     private void Draw()
     {
-        ImGui.SetNextWindowSize(new Vector2f(1100.0f, 650.0f),
-            ImGuiCond.ImGuiCondFirstUseEver);
+        Vector2f viewportPosition;
+        Vector2f viewportSize;
+        uint viewportId;
+        using (var viewport = ImGui.GetMainViewport())
+        {
+            viewportPosition = viewport.Pos;
+            viewportSize = viewport.Size;
+            viewportId = viewport.Id;
+        }
+
+        ImGui.SetNextWindowPos(viewportPosition);
+        ImGui.SetNextWindowSize(viewportSize);
+        ImGui.SetNextWindowViewport(viewportId);
+        ImGui.PushStyleVar(ImGuiStyleVar.ImGuiStyleVarWindowRounding, 0.0f);
+        ImGui.PushStyleVar(ImGuiStyleVar.ImGuiStyleVarWindowBorderSize, 0.0f);
+        ImGui.PushStyleVar(ImGuiStyleVar.ImGuiStyleVarWindowPadding, Vector2f.Zero);
+        ImGui.PushStyleColor(ImGuiCol.ImGuiColWindowBg, DashboardBackground);
         var open = true;
         if (ImGui.Begin("WebRTC STUN/TURN Test"u8, ref open,
-            ImGuiWindowFlags.ImGuiWindowFlagsNoSavedSettings))
+            ImGuiWindowFlags.ImGuiWindowFlagsNoDecoration |
+            ImGuiWindowFlags.ImGuiWindowFlagsNoMove |
+            ImGuiWindowFlags.ImGuiWindowFlagsNoSavedSettings |
+            ImGuiWindowFlags.ImGuiWindowFlagsNoBringToFrontOnFocus))
+            DrawDashboard(viewportPosition, viewportSize);
+        ImGui.End();
+        ImGui.PopStyleColor();
+        ImGui.PopStyleVar(3);
+    }
+
+    private void DrawDashboard(Vector2f position, Vector2f size)
+    {
+        using (var drawList = ImGui.GetWindowDrawList())
+            drawList.AddRectFilledMultiColor(position, position + size,
+                ImGui.GetColorU32(DashboardBackground), ImGui.GetColorU32(new Vector4f(0.035f, 0.08f, 0.13f, 1.0f)),
+                ImGui.GetColorU32(new Vector4f(0.012f, 0.025f, 0.05f, 1.0f)),
+                ImGui.GetColorU32(new Vector4f(0.045f, 0.025f, 0.09f, 1.0f)));
+
+        var margin = size.X < 900.0f ? 14.0f : 28.0f;
+        var gap = size.X < 900.0f ? 10.0f : 18.0f;
+        var headerHeight = 70.0f;
+        var footerHeight = 150.0f;
+        var contentWidth = Math.Max(1.0f, size.X - margin * 2.0f);
+        var contentHeight = Math.Max(180.0f, size.Y - margin * 2.0f - headerHeight - footerHeight - gap * 2.0f);
+        var headerPosition = position + new Vector2f(margin, margin);
+
+        ImGui.SetCursorScreenPos(headerPosition);
+        ImGui.PushStyleColor(ImGuiCol.ImGuiColText, PrimaryText);
+        ImGui.TextUnformatted("WEBRTC CONNECTIVITY LAB"u8);
+        ImGui.PopStyleColor();
+        ImGui.PushStyleColor(ImGuiCol.ImGuiColText, MutedText);
+        ImGui.TextUnformatted("Inspect direct, STUN, and relay-assisted data channels."u8);
+        ImGui.PopStyleColor();
+
+        var clientConnected = _clientConnection?.IsConnected == true;
+        var serverRunning = _server is not null && (_server.IsListening || _relayConnections.Count != 0);
+        var canChat = clientConnected || serverRunning && _serverConnections.Count != 0;
+        var idle = !clientConnected && !serverRunning;
+        DrawStatusBadge(headerPosition + new Vector2f(contentWidth - 175.0f, 2.0f),
+            idle ? "READY"u8 : clientConnected ? "CONNECTED"u8 : "LISTENING"u8,
+            idle ? AccentAmber : AccentCyan);
+
+        var contentPosition = headerPosition + new Vector2f(0.0f, headerHeight);
+        var overviewWidth = Math.Min(355.0f, contentWidth * 0.32f);
+        DrawOverviewPanel(contentPosition, new Vector2f(overviewWidth, contentHeight), clientConnected, serverRunning);
+        DrawActivityPanel(contentPosition + new Vector2f(overviewWidth + gap, 0.0f),
+            new Vector2f(contentWidth - overviewWidth - gap, contentHeight));
+        DrawCommandPanel(contentPosition + new Vector2f(0.0f, contentHeight + gap),
+            new Vector2f(contentWidth, footerHeight), idle, canChat);
+    }
+
+    private void DrawOverviewPanel(Vector2f position, Vector2f size, bool clientConnected, bool serverRunning)
+    {
+        BeginPanel("##Overview"u8, position, size);
+        DrawPanelTitle("CONNECTION"u8, AccentViolet);
+        ImGui.PushStyleColor(ImGuiCol.ImGuiColText, MutedText);
+        ImGui.TextUnformatted("Local signaling and ICE state"u8);
+        ImGui.PopStyleColor();
+        ImGui.Separator();
+        DrawStateLine("CLIENT"u8, clientConnected, clientConnected ? "CONNECTED"u8 : "IDLE"u8);
+        DrawStateLine("SERVER"u8, serverRunning, serverRunning ? "LISTENING"u8 : "STOPPED"u8);
+        DrawStateLine("RELAY"u8, _isRelayMode, _isRelayMode ? "ENABLED"u8 : "DIRECT"u8);
+        ImGui.Spacing();
+        ImGui.PushStyleColor(ImGuiCol.ImGuiColText, AccentAmber);
+        ImGui.TextUnformatted("ENDPOINTS"u8);
+        ImGui.PopStyleColor();
+        DrawValueLine("TCP SIGNALING"u8, "2345"u8);
+        DrawValueLine("UDP DATA"u8, "2346"u8);
+        ImGui.PushStyleColor(ImGuiCol.ImGuiColText, MutedText);
+        ImGui.TextUnformatted("Five public STUN endpoints configured"u8);
+        ImGui.PopStyleColor();
+        EndPanel();
+    }
+
+    private void DrawActivityPanel(Vector2f position, Vector2f size)
+    {
+        BeginPanel("##Activity"u8, position, size);
+        DrawPanelTitle("SESSION ACTIVITY"u8, AccentCyan);
+        ImGui.PushStyleColor(ImGuiCol.ImGuiColText, MutedText);
+        ImGui.TextUnformatted("Signaling, ICE candidates, and chat messages"u8);
+        ImGui.PopStyleColor();
+        ImGui.Separator();
+        if (ImGui.BeginChild("##ActivityRows"u8, ImGui.GetContentRegionAvail()))
         {
-            if (ImGui.BeginChild("Chat history"u8, new Vector2f(0.0f, 520.0f)))
+            foreach (var row in _chatHistory)
             {
-                foreach (var row in _chatHistory)
-                    ImGui.TextUnformatted(Encoding.UTF8.GetBytes(row));
+                if (row.ByteLength != 0)
+                    ImGui.TextUnformatted(row.ContentBytes);
             }
-            ImGui.EndChild();
+        }
+        ImGui.EndChild();
+        EndPanel();
+    }
 
-            ImGui.InputText("Address, port, or relay room"u8, _textBuffer, InputBufferSize);
-            var clientConnected = _clientConnection?.IsConnected == true;
-            var serverRunning = _server is not null &&
-                (_server.IsListening || _relayConnections.Count != 0);
-            var canChat = clientConnected || serverRunning && _serverConnections.Count != 0;
-            var idle = !clientConnected && !serverRunning;
-
-            if (idle && ImGui.Button("Start Server"u8))
-                StartServer();
-            if (idle)
-            {
-                ImGui.SameLine();
-                if (ImGui.Button("Start Relay"u8))
-                    StartRelay();
-                ImGui.SameLine();
-                if (ImGui.Button("Connect"u8))
-                    Connect();
-                ImGui.SameLine();
-                if (ImGui.Button("Connect Relay"u8))
-                    ConnectRelay();
-            }
-            if (!idle && ImGui.Button("Disconnect"u8))
-                Disconnect();
+    private void DrawCommandPanel(Vector2f position, Vector2f size, bool idle, bool canChat)
+    {
+        BeginPanel("##Commands"u8, position, size);
+        DrawPanelTitle(canChat ? "MESSAGE"u8 : "CONNECT OR HOST"u8, AccentAmber);
+        ImGui.PushStyleColor(ImGuiCol.ImGuiColText, MutedText);
+        ImGui.TextUnformatted(canChat
+            ? "Send a UTF-8 message over the active data channel."u8
+            : "Enter IP[:port], port, or room[@relay-url]."u8);
+        ImGui.PopStyleColor();
+        ImGui.SetNextItemWidth(-1.0f);
+        ImGui.InputText("##Endpoint"u8, _textBuffer, InputBufferSize);
+        if (idle)
+        {
+            if (ImGui.Button("START SERVER"u8)) StartServer();
+            ImGui.SameLine();
+            if (ImGui.Button("START RELAY"u8)) StartRelay();
+            ImGui.SameLine();
+            if (ImGui.Button("CONNECT DIRECT"u8)) Connect();
+            ImGui.SameLine();
+            if (ImGui.Button("CONNECT RELAY"u8)) ConnectRelay();
+        }
+        else
+        {
+            ImGui.PushStyleColor(ImGuiCol.ImGuiColButton, DangerButton);
+            if (ImGui.Button("DISCONNECT"u8)) Disconnect();
+            ImGui.PopStyleColor();
             if (canChat)
             {
                 ImGui.SameLine();
-                if (ImGui.Button("Send"u8))
-                    Send();
+                ImGui.PushStyleColor(ImGuiCol.ImGuiColButton, SendButton);
+                if (ImGui.Button("SEND MESSAGE"u8)) Send();
+                ImGui.PopStyleColor();
             }
         }
-        ImGui.End();
+        EndPanel();
+    }
+
+    private static void DrawPanelTitle(ReadOnlySpan<byte> title, Vector4f color)
+    {
+        ImGui.PushStyleColor(ImGuiCol.ImGuiColText, color);
+        ImGui.TextUnformatted(title);
+        ImGui.PopStyleColor();
+    }
+
+    private static void DrawStateLine(ReadOnlySpan<byte> label, bool active, ReadOnlySpan<byte> state)
+    {
+        ImGui.TextUnformatted(label);
+        ImGui.SameLine();
+        ImGui.SetCursorPosX(124.0f);
+        ImGui.PushStyleColor(ImGuiCol.ImGuiColText, active ? AccentCyan : MutedText);
+        ImGui.TextUnformatted(state);
+        ImGui.PopStyleColor();
+    }
+
+    private static void DrawValueLine(ReadOnlySpan<byte> label, ReadOnlySpan<byte> value)
+    {
+        ImGui.TextUnformatted(label);
+        ImGui.SameLine();
+        ImGui.SetCursorPosX(124.0f);
+        ImGui.PushStyleColor(ImGuiCol.ImGuiColText, PrimaryText);
+        ImGui.TextUnformatted(value);
+        ImGui.PopStyleColor();
+    }
+
+    private static void DrawStatusBadge(Vector2f position, ReadOnlySpan<byte> label, Vector4f color)
+    {
+        using var drawList = ImGui.GetWindowDrawList();
+        drawList.AddRectFilled(position, position + new Vector2f(175.0f, 34.0f),
+            ImGui.GetColorU32(new Vector4f(color.X * 0.14f, color.Y * 0.14f, color.Z * 0.14f, 0.95f)), 17.0f);
+        drawList.AddCircleFilled(position + new Vector2f(17.0f, 17.0f), 4.0f, ImGui.GetColorU32(color));
+        ImGui.SetCursorScreenPos(position + new Vector2f(30.0f, 8.0f));
+        ImGui.PushStyleColor(ImGuiCol.ImGuiColText, color);
+        ImGui.TextUnformatted(label);
+        ImGui.PopStyleColor();
+    }
+
+    private static void BeginPanel(ReadOnlySpan<byte> id, Vector2f position, Vector2f size)
+    {
+        ImGui.SetCursorScreenPos(position);
+        ImGui.PushStyleColor(ImGuiCol.ImGuiColChildBg, PanelBackground);
+        ImGui.PushStyleColor(ImGuiCol.ImGuiColBorder, PanelBorder);
+        ImGui.PushStyleVar(ImGuiStyleVar.ImGuiStyleVarChildRounding, 12.0f);
+        ImGui.PushStyleVar(ImGuiStyleVar.ImGuiStyleVarChildBorderSize, 1.0f);
+        ImGui.PushStyleVar(ImGuiStyleVar.ImGuiStyleVarWindowPadding, new Vector2f(16.0f, 12.0f));
+        ImGui.BeginChild(id, size, ImGuiChildFlags.ImGuiChildFlagsBorders);
+    }
+
+    private static void EndPanel()
+    {
+        ImGui.EndChild();
+        ImGui.PopStyleVar(3);
+        ImGui.PopStyleColor(2);
     }
 
     private void ShowChatText(string row)
     {
-        if (_chatHistory.Count != 0)
-            _chatHistory.RemoveAt(0);
-        _chatHistory.Add(row);
+        if (_chatHistory.Count == 0)
+            return;
+        var oldest = _chatHistory[0];
+        _chatHistory.RemoveAt(0);
+        oldest.Set(row);
+        _chatHistory.Add(oldest);
     }
 
     private void HandleSampleLogMessage(ref IOEvents.LogMessage eventData) =>
@@ -623,7 +792,7 @@ public sealed class WebRTCSTUN : Application
     private static readonly IceGatheringCallback IceGatheringChanged = HandleIceGathering;
     private static readonly nint IceGatheringCallbackPointer = Marshal.GetFunctionPointerForDelegate(IceGatheringChanged);
 
-    private readonly List<string> _chatHistory = [];
+    private readonly List<CString> _chatHistory = [];
     private readonly List<WeakReference<NetworkConnection>> _serverConnections = [];
     private readonly List<uint> _serverClientIds = [];
     private readonly List<DataChannelConnection> _relayConnections = [];
@@ -639,6 +808,16 @@ public sealed class WebRTCSTUN : Application
     private bool _wasEverConnected;
     private bool _retrying;
     private bool _isRelayMode;
+    private static readonly Vector4f DashboardBackground = new(0.012f, 0.02f, 0.045f, 1.0f);
+    private static readonly Vector4f PanelBackground = new(0.045f, 0.058f, 0.105f, 0.95f);
+    private static readonly Vector4f PanelBorder = new(0.18f, 0.24f, 0.4f, 0.85f);
+    private static readonly Vector4f PrimaryText = new(0.92f, 0.96f, 1.0f, 1.0f);
+    private static readonly Vector4f MutedText = new(0.52f, 0.59f, 0.72f, 1.0f);
+    private static readonly Vector4f AccentCyan = new(0.16f, 0.93f, 1.0f, 1.0f);
+    private static readonly Vector4f AccentViolet = new(0.68f, 0.46f, 1.0f, 1.0f);
+    private static readonly Vector4f AccentAmber = new(1.0f, 0.68f, 0.26f, 1.0f);
+    private static readonly Vector4f DangerButton = new(0.58f, 0.16f, 0.24f, 1.0f);
+    private static readonly Vector4f SendButton = new(0.08f, 0.45f, 0.52f, 1.0f);
 
     private sealed class RelayWebSocket : IDisposable
     {
