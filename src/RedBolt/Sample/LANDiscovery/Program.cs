@@ -89,6 +89,9 @@ public sealed class LANDiscovery : Application
     {
         _lanDiscovery?.Dispose();
         _lanDiscovery = null;
+        _serverCountText.Dispose();
+        _serverNameText.Dispose();
+        _serverDetailsText.Dispose();
         base.Stop();
     }
 
@@ -97,7 +100,7 @@ public sealed class LANDiscovery : Application
         Vector2f viewportPosition;
         Vector2f viewportSize;
         uint viewportId;
-        using (var viewport = ImGui.GetMainViewport())
+        var viewport = ImGui.GetMainViewport();
         {
             viewportPosition = viewport.Pos;
             viewportSize = viewport.Size;
@@ -125,7 +128,7 @@ public sealed class LANDiscovery : Application
 
     private void DrawDashboard(Vector2f position, Vector2f size)
     {
-        using (var drawList = ImGui.GetWindowDrawList())
+        var drawList = ImGui.GetWindowDrawList();
         {
             drawList.AddRectFilledMultiColor(position, position + size,
                 ImGui.GetColorU32(DashboardBackground),
@@ -168,7 +171,7 @@ public sealed class LANDiscovery : Application
         var badge = position + new Vector2f(Math.Max(0.0f, width - 170.0f), 8.0f);
         var active = _serverRunning || _lastDiscoveryTime != 0;
         var color = active ? AccentCyan : MutedText;
-        using var drawList = ImGui.GetWindowDrawList();
+        var drawList = ImGui.GetWindowDrawList();
         drawList.AddRectFilled(badge, badge + new Vector2f(170.0f, 34.0f),
             ImGui.GetColorU32(new Vector4f(color.X, color.Y, color.Z, 0.14f)), 17.0f);
         drawList.AddCircleFilled(badge + new Vector2f(17.0f, 17.0f), 4.0f, ImGui.GetColorU32(color));
@@ -225,7 +228,8 @@ public sealed class LANDiscovery : Application
         ImGui.PopStyleColor();
         ImGui.SameLine();
         ImGui.PushStyleColor(ImGuiCol.ImGuiColText, MutedText);
-        ImGui.TextUnformatted(Encoding.UTF8.GetBytes($"{_serverListItems.Count} DISCOVERED  /  LIVE UPDATES"));
+        _serverCountText.FormatInPlace($"{_serverListItems.Count} DISCOVERED  /  LIVE UPDATES");
+        ImGui.TextUnformatted(_serverCountText.ContentBytes);
         ImGui.PopStyleColor();
         ImGui.Separator();
 
@@ -247,7 +251,7 @@ public sealed class LANDiscovery : Application
     {
         var origin = ImGui.GetCursorScreenPos();
         var width = Math.Max(80.0f, ImGui.GetContentRegionAvail().X);
-        using (var drawList = ImGui.GetWindowDrawList())
+        var drawList = ImGui.GetWindowDrawList();
         {
             drawList.AddRectFilled(origin, origin + new Vector2f(width, 68.0f),
                 ImGui.GetColorU32(RowBackground), 8.0f);
@@ -271,7 +275,7 @@ public sealed class LANDiscovery : Application
         var origin = ImGui.GetCursorScreenPos();
         var width = Math.Max(120.0f, ImGui.GetContentRegionAvail().X);
         var age = Time.GetTimeSinceEpoch() - item.LastSeen;
-        using (var drawList = ImGui.GetWindowDrawList())
+        var drawList = ImGui.GetWindowDrawList();
         {
             drawList.AddRectFilled(origin, origin + new Vector2f(width, rowHeight - 8.0f),
                 ImGui.GetColorU32(RowBackground), 8.0f);
@@ -282,11 +286,13 @@ public sealed class LANDiscovery : Application
         }
         ImGui.SetCursorScreenPos(origin + new Vector2f(15.0f, 9.0f));
         ImGui.PushStyleColor(ImGuiCol.ImGuiColText, PrimaryText);
-        ImGui.TextUnformatted(Encoding.UTF8.GetBytes(item.Name));
+        _serverNameText.Set(item.Name);
+        ImGui.TextUnformatted(_serverNameText.ContentBytes);
         ImGui.PopStyleColor();
         ImGui.SetCursorScreenPos(origin + new Vector2f(15.0f, 35.0f));
         ImGui.PushStyleColor(ImGuiCol.ImGuiColText, MutedText);
-        ImGui.TextUnformatted(Encoding.UTF8.GetBytes($"{item.Address}:{item.Port}  /  {item.Players} players  /  seen {age}s ago"));
+        _serverDetailsText.FormatInPlace($"{item.Address}:{item.Port}  /  {item.Players} players  /  seen {age}s ago");
+        ImGui.TextUnformatted(_serverDetailsText.ContentBytes);
         ImGui.PopStyleColor();
         ImGui.SetCursorScreenPos(origin);
         ImGui.Dummy(new Vector2f(width, rowHeight));
@@ -296,7 +302,7 @@ public sealed class LANDiscovery : Application
     {
         var origin = ImGui.GetCursorScreenPos();
         var center = origin + ImGui.GetContentRegionAvail() * 0.5f;
-        using var drawList = ImGui.GetWindowDrawList();
+        var drawList = ImGui.GetWindowDrawList();
         drawList.AddCircleFilled(center - new Vector2f(0.0f, 20.0f), 29.0f,
             ImGui.GetColorU32(new Vector4f(0.08f, 0.16f, 0.24f, 0.75f)));
         drawList.AddCircle(center - new Vector2f(0.0f, 20.0f), 19.0f,
@@ -404,6 +410,9 @@ public sealed class LANDiscovery : Application
     private bool _serverRunning;
     private uint _lastDiscoveryTime;
     private ImFont? _headingFont;
+    private readonly CString _serverCountText = new();
+    private readonly CString _serverNameText = new();
+    private readonly CString _serverDetailsText = new();
 
     private static readonly Vector4f DashboardBackground = new(0.015f, 0.022f, 0.05f, 1.0f);
     private static readonly Vector4f PanelBackground = new(0.048f, 0.06f, 0.11f, 0.94f);

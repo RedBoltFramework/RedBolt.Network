@@ -115,7 +115,7 @@ public sealed class HttpRequestDemo : Application
         Vector2f viewportPosition;
         Vector2f viewportSize;
         uint viewportId;
-        using (var viewport = ImGui.GetMainViewport())
+        var viewport = ImGui.GetMainViewport();
         {
             viewportPosition = viewport.Pos;
             viewportSize = viewport.Size;
@@ -143,7 +143,7 @@ public sealed class HttpRequestDemo : Application
 
     private void DrawDashboard(Vector2f position, Vector2f size)
     {
-        using (var drawList = ImGui.GetWindowDrawList())
+        var drawList = ImGui.GetWindowDrawList();
         {
             drawList.AddRectFilledMultiColor(position, position + size,
                 ImGui.GetColorU32(DashboardBackground),
@@ -185,7 +185,7 @@ public sealed class HttpRequestDemo : Application
 
         var color = GetStatusColor();
         var badge = position + new Vector2f(Math.Max(0.0f, width - 150.0f), 8.0f);
-        using var drawList = ImGui.GetWindowDrawList();
+        var drawList = ImGui.GetWindowDrawList();
         drawList.AddRectFilled(badge, badge + new Vector2f(150.0f, 34.0f),
             ImGui.GetColorU32(new Vector4f(color.X, color.Y, color.Z, 0.14f)), 17.0f);
         drawList.AddCircleFilled(badge + new Vector2f(17.0f, 17.0f), 4.0f, ImGui.GetColorU32(color));
@@ -221,7 +221,7 @@ public sealed class HttpRequestDemo : Application
         Vector4f accent, float width)
     {
         var origin = ImGui.GetCursorScreenPos();
-        using (var drawList = ImGui.GetWindowDrawList())
+        var drawList = ImGui.GetWindowDrawList();
         {
             drawList.AddRectFilled(origin, origin + new Vector2f(width, 62.0f),
                 ImGui.GetColorU32(FieldBackground), 8.0f);
@@ -256,7 +256,7 @@ public sealed class HttpRequestDemo : Application
         if (!_finished)
         {
             var center = origin + ImGui.GetContentRegionAvail() * 0.5f;
-            using var drawList = ImGui.GetWindowDrawList();
+            var drawList = ImGui.GetWindowDrawList();
             drawList.AddCircle(center - new Vector2f(0.0f, 20.0f), 28.0f, ImGui.GetColorU32(PanelBorder), 0, 3.0f);
             drawList.AddCircleFilled(center - new Vector2f(0.0f, 20.0f), 6.0f, ImGui.GetColorU32(AccentCyan));
             ImGui.SetCursorScreenPos(center + new Vector2f(-78.0f, 26.0f));

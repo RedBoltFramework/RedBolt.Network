@@ -141,7 +141,7 @@ public sealed class WebRTCSTUN : Application
         Vector2f viewportPosition;
         Vector2f viewportSize;
         uint viewportId;
-        using (var viewport = ImGui.GetMainViewport())
+        var viewport = ImGui.GetMainViewport();
         {
             viewportPosition = viewport.Pos;
             viewportSize = viewport.Size;
@@ -169,7 +169,7 @@ public sealed class WebRTCSTUN : Application
 
     private void DrawDashboard(Vector2f position, Vector2f size)
     {
-        using (var drawList = ImGui.GetWindowDrawList())
+        var drawList = ImGui.GetWindowDrawList();
             drawList.AddRectFilledMultiColor(position, position + size,
                 ImGui.GetColorU32(DashboardBackground), ImGui.GetColorU32(new Vector4f(0.035f, 0.08f, 0.13f, 1.0f)),
                 ImGui.GetColorU32(new Vector4f(0.012f, 0.025f, 0.05f, 1.0f)),
@@ -317,7 +317,7 @@ public sealed class WebRTCSTUN : Application
 
     private static void DrawStatusBadge(Vector2f position, ReadOnlySpan<byte> label, Vector4f color)
     {
-        using var drawList = ImGui.GetWindowDrawList();
+        var drawList = ImGui.GetWindowDrawList();
         drawList.AddRectFilled(position, position + new Vector2f(175.0f, 34.0f),
             ImGui.GetColorU32(new Vector4f(color.X * 0.14f, color.Y * 0.14f, color.Z * 0.14f, 0.95f)), 17.0f);
         drawList.AddCircleFilled(position + new Vector2f(17.0f, 17.0f), 4.0f, ImGui.GetColorU32(color));
