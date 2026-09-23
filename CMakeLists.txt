@@ -103,7 +103,7 @@ if(WIN32)
 endif()
 
 file(GENERATE
-    OUTPUT "${REDBOLT_GENERATED_ROOT}/native-modules/$<CONFIG>/LIBDATACHANNEL.json"
+    OUTPUT "${REDBOLT_GENERATED_ROOT}/native-modules/LIBDATACHANNEL.json"
     CONTENT "{\n  \"module\": \"LIBDATACHANNEL\",\n  \"managedSelector\": \"RedBolt.Bindings.LibDataChannel\",\n  \"nativeLibrary\": \"RedBolt.Native.LibDataChannel\",\n  \"requires\": [],\n  \"requirementClosure\": [],\n  \"artifacts\": [\"$<TARGET_FILE_NAME:redbolt-network-native-libdatachannel>\"]\n}\n")
 
 add_custom_target(redbolt-network-native-all DEPENDS redbolt-network-native-libdatachannel)
