@@ -199,7 +199,8 @@ internal abstract class BindingTargetGenerator(
         var toolchainInfo = CompilerToolchainDiscovery.Discover(
             options.CompilerPath,
             options.CompilerTarget,
-            options.CompilerSysroot);
+            options.CompilerSysroot,
+            Environment.GetEnvironmentVariable("REDBOLT_CLANG_RESOURCE_DIRECTORY"));
         var targetTriple = toolchainInfo.TargetTriple;
         var isX86Target = string.IsNullOrWhiteSpace(targetTriple) ||
             targetTriple.StartsWith("x86", StringComparison.OrdinalIgnoreCase) ||
