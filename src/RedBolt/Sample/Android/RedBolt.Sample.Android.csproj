@@ -11,6 +11,7 @@ For a copy, see <https://opensource.org/licenses/MIT> or the accompanying LICENS
     <ApplicationId>org.redbolt.network.samples</ApplicationId>
     <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
     <RedBoltExternalAndroidNativeOutput>$(RedBoltNativeOutputRoot)</RedBoltExternalAndroidNativeOutput>
+    <RedBoltAndroidSampleNativeModules>RedBolt.Network</RedBoltAndroidSampleNativeModules>
     <!-- </redbolt-generated name="android-project-properties"> -->
   </PropertyGroup>
   <ItemGroup>
