@@ -9,6 +9,7 @@ For a copy, see <https://opensource.org/licenses/MIT> or the accompanying LICENS
     <!-- <redbolt-generated name="web-project-properties"> -->
     <AssemblyName>RedBolt.Network.Sample.Web</AssemblyName>
     <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <RedBoltExternalWebPInvokeModules>RedBolt.Native.DearImGui</RedBoltExternalWebPInvokeModules>
     <RedBoltWebExtensionScript>wwwroot/extension.js</RedBoltWebExtensionScript>
     <!-- </redbolt-generated name="web-project-properties"> -->
   </PropertyGroup>
