@@ -17,6 +17,9 @@ For a copy, see <https://opensource.org/licenses/MIT> or the accompanying LICENS
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Include="$(RedBoltRoot)/src/RedBolt/Generator/Dependencies/BindingTargetGenerator.cs" Link="Shared/BindingTargetGenerator.cs" />
+    <Compile Include="$(RedBoltRoot)/src/RedBolt/Generator/Dependencies/FixedWidthAliasNormalizer.cs" Link="Shared/FixedWidthAliasNormalizer.cs" />
+    <Compile Include="$(RedBoltRoot)/src/RedBolt/Generator/Dependencies/GeneratorOptions.cs" Link="Shared/GeneratorOptions.cs" />
     <ProjectReference Include="$(RedBoltSharpCppRoot)/src/SharpCpp.Model/SharpCpp.Model.csproj"
                       AdditionalProperties="$(RedBoltSharpCppManagedProperties)" />
     <ProjectReference Include="$(RedBoltSharpCppRoot)/src/SharpCpp.Metadata/SharpCpp.Metadata.csproj"
