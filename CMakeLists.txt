@@ -49,6 +49,7 @@ include("${REDBOLT_ROOT}/cmake/CPM.cmake")
 set(FETCHCONTENT_BASE_DIR "${CMAKE_BINARY_DIR}/deps")
 
 include("${REDBOLT_ROOT}/cmake/RedBoltSharpCpp.cmake")
+include("${REDBOLT_ROOT}/cmake/RedBoltNativeModuleManifest.cmake")
 include(extern/OpenSSL.cmake)
 include(extern/LibDataChannel.cmake)
 
@@ -102,9 +103,16 @@ if(WIN32)
     set_target_properties(redbolt-network-native-libdatachannel PROPERTIES PREFIX "")
 endif()
 
-file(GENERATE
-    OUTPUT "${REDBOLT_GENERATED_ROOT}/native-modules/LIBDATACHANNEL.json"
-    CONTENT "{\n  \"module\": \"LIBDATACHANNEL\",\n  \"managedSelector\": \"RedBolt.Bindings.LibDataChannel\",\n  \"nativeLibrary\": \"RedBolt.Native.LibDataChannel\",\n  \"requires\": [],\n  \"requirementClosure\": [],\n  \"artifacts\": [\"$<TARGET_FILE_NAME:redbolt-network-native-libdatachannel>\"]\n}\n")
+redbolt_write_native_module_manifest(
+    MODULE LIBDATACHANNEL
+    TARGET redbolt-network-native-libdatachannel
+    SELECTOR RedBolt.Bindings.LibDataChannel
+    LIBRARY_NAME "${REDBOLT_LIBDATACHANNEL_NATIVE_LIBRARY_NAME}"
+    OUTPUT_DIR "${REDBOLT_GENERATED_ROOT}/native-modules")
 
 add_custom_target(redbolt-network-native-all DEPENDS redbolt-network-native-libdatachannel)
 add_custom_target(redbolt-network-android-native DEPENDS redbolt-network-native-libdatachannel)
+if(NOT EMSCRIPTEN)
+    add_dependencies(redbolt-network-native-all redbolt-network-native-libdatachannel-module)
+    add_dependencies(redbolt-network-android-native redbolt-network-native-libdatachannel-module)
+endif()
