@@ -131,6 +131,9 @@ public partial class NetworkObject : ReferencedComponent<NetworkObjectRegistry>,
 
     protected override void OnMarkedDirty(Node node)
     {
+        // A node can be marked dirty after its object left the registry, for example when the scene is disposed
+        if (!IsTrackedInRegistry)
+            return;
         ReplicationManager?.QueueNetworkObjectUpdate(this);
     }
 
