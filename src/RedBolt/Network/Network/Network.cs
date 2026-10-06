@@ -17,6 +17,7 @@ public class Network : RedObject
         SubscribeToEvent<CoreEvents.RenderUpdateEvent>(HandleRenderUpdate);
         SubscribeToEvent<NetworkEvents.ClientDisconnectedEvent>(HandleClientDisconnected);
         SubscribeToEvent<NetworkEvents.ServerClientDisconnectedEvent>(HandleServerClientDisconnected);
+        SubscribeToEvent<CoreEvents.ExitDelayQueryEvent>(HandleExitDelayQuery);
     }
 
     /// <summary>Register Network library objects.</summary>
@@ -108,6 +109,11 @@ public class Network : RedObject
     private void HandleRenderUpdate(ref CoreEvents.RenderUpdateEvent eventData)
     {
         PostUpdate(eventData.TimeStep);
+    }
+
+    private void HandleExitDelayQuery(ref CoreEvents.ExitDelayQueryEvent eventData)
+    {
+        eventData.Delay |= HasActiveResources;
     }
 
     private void HandleClientDisconnected(ref NetworkEvents.ClientDisconnectedEvent eventData)
