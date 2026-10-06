@@ -67,10 +67,12 @@ public partial class DataChannelServer : NetworkServer
         if (!IsListening)
             return;
 
-        NotifyStopping();
-
         foreach (var connection in Connections.ToArray())
             connection.Disconnect();
+
+        // Network waits for the disconnected event of the last connection. Without a connection no event comes.
+        if (Connections.Count != 0)
+            NotifyStopping();
 
         var webSocketServer = _webSocketServer;
         _webSocketServer = InvalidId;
