@@ -58,7 +58,7 @@ public partial class DataChannelServer : NetworkServer
         }
 
         RtcSetUserPointer(_webSocketServer, GCHandle.ToIntPtr(_selfHandle));
-        DoOnListenStart();
+        DispatchListenStart();
         return true;
     }
 
@@ -77,7 +77,7 @@ public partial class DataChannelServer : NetworkServer
         RtcSetUserPointer(webSocketServer, 0);
         RtcDeleteWebSocketServer(webSocketServer);
         FreeSelfHandle();
-        DoOnListenStop();
+        DispatchListenStop();
     }
 
     public override bool IsListening => _webSocketServer >= 0;

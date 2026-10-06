@@ -247,7 +247,7 @@ public partial class DataChannelConnection : NetworkConnection
         DispatchConnected();
 
         if (Server is DataChannelServer server)
-            server.DoOnConnected(this);
+            server.DispatchConnected(this);
 
         CloseWebSocket();
     }
@@ -271,7 +271,7 @@ public partial class DataChannelConnection : NetworkConnection
             DispatchDisconnected();
 
         if (Server is DataChannelServer server)
-            server.DoOnDisconnected(this);
+            server.DispatchDisconnected(this);
 
         CloseWebSocket();
         ClosePeer();

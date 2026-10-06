@@ -405,8 +405,8 @@ public sealed class Chat : Application
         if (_server is null)
         {
             _server = new DataChannelServer();
-            _server.Connected += HandleServerConnected;
-            _server.Disconnected += HandleServerDisconnected;
+            _server.OnConnected += HandleServerConnected;
+            _server.OnDisconnected += HandleServerDisconnected;
         }
         _server.Listen(new URL($"ws://0.0.0.0:{ChatServerPort}"));
     }

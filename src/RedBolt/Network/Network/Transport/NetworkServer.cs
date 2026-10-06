@@ -10,7 +10,8 @@ public abstract class NetworkServer : RedObject
 {
     protected NetworkServer()
     {
-        _workQueue = Context.GetSubsystem<WorkQueue>()!;
+        // Cached here because a dispatch can run on a network thread. The subsystem can be missing until first use.
+        _workQueue = Context.GetSubsystem<WorkQueue>();
     }
 
     public abstract bool Listen(URL url);
@@ -28,23 +29,23 @@ public abstract class NetworkServer : RedObject
     {
         System.Diagnostics.Debug.Assert(_connectionFactory is not null);
         var connection = _connectionFactory!();
-        AddConnection(connection);
+        RunTaskOnMainThread(() => AddConnection(connection));
         return connection;
     }
 
-    public event Action<NetworkServer, NetworkConnection>? Connected;
-    public event Action<NetworkServer, NetworkConnection>? Disconnected;
-    public event Action<NetworkServer>? ListenStarted;
-    public event Action<NetworkServer>? ListenStopped;
+    public event Action<NetworkServer, NetworkConnection>? OnConnected;
+    public event Action<NetworkServer, NetworkConnection>? OnDisconnected;
+    public event Action<NetworkServer>? OnListenStart;
+    public event Action<NetworkServer>? OnListenStop;
 
     protected void NotifyStopping()
     {
         Context.GetSubsystem<Network>()?.OnServerStopping(this);
     }
 
-    protected virtual void OnConnected(NetworkConnection connection)
+    protected virtual void HandleConnected(NetworkConnection connection)
     {
-        Connected?.Invoke(this, connection);
+        OnConnected?.Invoke(this, connection);
         var eventData = new NetworkEvents.ServerClientConnectedEvent
         {
             Server = this,
@@ -55,9 +56,9 @@ public abstract class NetworkServer : RedObject
         SendEvent(ref eventData);
     }
 
-    protected virtual void OnDisconnected(NetworkConnection connection)
+    protected virtual void HandleDisconnected(NetworkConnection connection)
     {
-        Disconnected?.Invoke(this, connection);
+        OnDisconnected?.Invoke(this, connection);
         var eventData = new NetworkEvents.ServerClientDisconnectedEvent
         {
             Server = this,
@@ -66,57 +67,66 @@ public abstract class NetworkServer : RedObject
             Port = connection.Port
         };
         SendEvent(ref eventData);
+
+        RemoveConnection(connection);
     }
 
-    protected virtual void OnListenStart()
+    protected virtual void HandleListenStart()
     {
-        ListenStarted?.Invoke(this);
+        OnListenStart?.Invoke(this);
         var eventData = new NetworkEvents.ServerListenStartEvent { Server = this };
         SendEvent(ref eventData);
     }
 
-    protected virtual void OnListenStop()
+    protected virtual void HandleListenStop()
     {
-        ListenStopped?.Invoke(this);
+        OnListenStop?.Invoke(this);
         var eventData = new NetworkEvents.ServerListenStopEvent { Server = this };
         SendEvent(ref eventData);
     }
 
-    protected internal void DoOnConnected(NetworkConnection connection)
+    protected internal void DispatchConnected(NetworkConnection connection)
     {
-        _workQueue.PostTaskForMainThread(() => OnConnected(connection));
+        RunTaskOnMainThread(() => HandleConnected(connection));
     }
 
-    protected internal void DoOnDisconnected(NetworkConnection connection)
+    protected internal void DispatchDisconnected(NetworkConnection connection)
     {
-        _workQueue.PostTaskForMainThread(() =>
-        {
-            OnDisconnected(connection);
-            RemoveConnection(connection);
-        });
+        RunTaskOnMainThread(() => HandleDisconnected(connection));
     }
 
-    protected void DoOnListenStart()
+    protected void DispatchListenStart()
     {
-        _workQueue.PostTaskForMainThread(OnListenStart);
+        RunTaskOnMainThread(HandleListenStart);
     }
 
-    protected void DoOnListenStop()
+    protected void DispatchListenStop()
     {
-        _workQueue.PostTaskForMainThread(OnListenStop);
+        RunTaskOnMainThread(HandleListenStop);
     }
 
     protected void AddConnection(NetworkConnection connection)
     {
-        _workQueue.PostTaskForMainThread(() => _connections.Add(connection));
+        _connections.Add(connection);
     }
 
     protected void RemoveConnection(NetworkConnection connection)
     {
-        _workQueue.PostTaskForMainThread(() => _connections.RemoveAll(item => ReferenceEquals(item, connection)));
+        _connections.RemoveAll(item => ReferenceEquals(item, connection));
     }
 
-    private readonly WorkQueue _workQueue;
+    private WorkQueue GetWorkQueue() => _workQueue ?? Context.GetSubsystem<WorkQueue>()!;
+
+    // Same as upstream WorkQueue::RunTaskOnMainThread: run now on the main thread, otherwise run between frames.
+    private void RunTaskOnMainThread(Action task)
+    {
+        if (WorkQueue.IsMainThread())
+            task();
+        else
+            GetWorkQueue().PostDelayedTaskForMainThread(task);
+    }
+
+    private readonly WorkQueue? _workQueue;
     private readonly List<NetworkConnection> _connections = [];
     private Func<NetworkConnection>? _connectionFactory;
 }

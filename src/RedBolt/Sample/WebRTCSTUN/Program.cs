@@ -544,10 +544,10 @@ public sealed class WebRTCSTUN : Application
             return;
         _server = new DataChannelServer();
         _server.SetIceServers(IceServers);
-        _server.ListenStarted += _ => HandleServerListenStart();
-        _server.ListenStopped += _ => HandleServerListenStop();
-        _server.Connected += HandleServerConnected;
-        _server.Disconnected += HandleServerDisconnected;
+        _server.OnListenStart += _ => HandleServerListenStart();
+        _server.OnListenStop += _ => HandleServerListenStop();
+        _server.OnConnected += HandleServerConnected;
+        _server.OnDisconnected += HandleServerDisconnected;
     }
 
     private void EnsureClientConnection()
