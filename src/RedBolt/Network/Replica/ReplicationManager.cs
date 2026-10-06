@@ -311,6 +311,8 @@ public partial class ReplicationManager : NetworkObjectRegistry
 
     private void InitializeObjectsStandalone()
     {
+        using var profile = Profiler.Profile("InitializeStandaloneNetworkObjects");
+
         foreach (var networkId in _recentlyAddedObjects)
         {
             var networkObject = GetNetworkObject(networkId);

@@ -45,12 +45,6 @@ public static class NetworkEvents
         public bool IsServer;
     }
 
-    /// <summary>Network update has been sent on the client or server.</summary>
-    public struct NetworkUpdateSentEvent
-    {
-        public bool IsServer;
-    }
-
     /// <summary>LAN discovery found a hosted server.</summary>
     public struct NetworkHostDiscoveredEvent
     {

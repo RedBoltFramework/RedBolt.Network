@@ -9,19 +9,33 @@ using RedBolt.Core;
 using RedBolt.IO;
 using RedBolt.Replica;
 
+/// <summary>Settings of the clock synchronization of a ReplicatedPeer.</summary>
+public class ReplicatedPeerSettings
+{
+    public uint PingIntervalMs { get; init; } = 250;
+    public uint MaxPingMs { get; init; } = 10000;
+    public uint ClockBufferSize { get; init; } = 40;
+    public uint PingBufferSize { get; init; } = 10;
+
+    /// <summary>Return the local timestamp in milliseconds. If null, use Time.GetSystemTime.</summary>
+    public Func<uint>? GetTimestamp { get; init; }
+}
+
 /// <summary>Replication-oriented interface attached to a transport connection.</summary>
 public class ReplicatedPeer : IDisposable
 {
-    public ReplicatedPeer(NetworkConnection connection, uint pingIntervalMs = 250,
-        uint maxPingMs = 10000, uint clockBufferSize = 40, uint pingBufferSize = 10,
-        Func<uint>? getTimestamp = null)
+    public ReplicatedPeer(NetworkConnection connection, ReplicatedPeerSettings? settings = null)
     {
         ArgumentNullException.ThrowIfNull(connection);
 
+        settings ??= new ReplicatedPeerSettings();
         _connection = connection;
-        _clock = new ClockSynchronizer(pingIntervalMs, maxPingMs, clockBufferSize,
-            pingBufferSize, getTimestamp);
+        _clock = new ClockSynchronizer(settings.PingIntervalMs, settings.MaxPingMs,
+            settings.ClockBufferSize, settings.PingBufferSize, settings.GetTimestamp);
         _listener = new Listener(this);
+
+        Logging.Log.GetLogger().Info("Replicated peer #{} is created for {} connection \"{}\"", ObjectId,
+            connection.Server is not null ? "server" : "client", connection.Address);
     }
 
     public uint ObjectId => _idFamily.GetObjectID();
@@ -60,16 +74,21 @@ public class ReplicatedPeer : IDisposable
 
     public virtual void Dispose()
     {
+        if (_disposed)
+            return;
+        _disposed = true;
+
         SetReplicationManager(null);
         _listener.Dispose();
+        Logging.Log.GetLogger().Info("Replicated peer #{} is destroyed", ObjectId);
         _idFamily.Dispose();
         GC.SuppressFinalize(this);
     }
 
-    private unsafe void ProcessReplicationMessage(
+    private unsafe void OnMessageReceived(
         NetworkMessageId messageId, ReadOnlySpan<byte> message, ref bool handled)
     {
-        if (handled || _replicationManager is null)
+        if (handled)
             return;
 
         // The replication code reads the message as a stream. The span is valid during this call.
@@ -95,7 +114,7 @@ public class ReplicatedPeer : IDisposable
 
     private void SendReplicationMessages()
     {
-        if (!_connection.IsConnected || _replicationManager is null)
+        if (!_connection.IsConnected)
             return;
 
         while (Clock.PollMessage() is { } clockMessage)
@@ -111,14 +130,24 @@ public class ReplicatedPeer : IDisposable
             return;
 
         if (_replicationManager.IsServer)
+        {
+            Logging.Log.GetLogger().Info("Replicated peer #{} is attached to server-side scene", ObjectId);
             _replicationManager.ServerReplicator!.AddConnection(this);
+        }
         else
+        {
+            Logging.Log.GetLogger().Info("Replicated peer #{} is attached to client-side scene", ObjectId);
             _replicationManager.StartClient(this);
+        }
     }
 
     private void OnDisconnected()
     {
-        _replicationManager?.DropConnection(this);
+        if (_replicationManager is null)
+            return;
+
+        _replicationManager.DropConnection(this);
+        Logging.Log.GetLogger().Info("Replicated peer #{} is detached from the scene", ObjectId);
     }
 
     private sealed class Listener : RedObject
@@ -145,7 +174,7 @@ public class ReplicatedPeer : IDisposable
 
         private void HandleMessageReceived(NetworkConnection connection, NetworkMessageId messageId,
             ReadOnlySpan<byte> message, ref bool handled) =>
-            _owner.ProcessReplicationMessage(messageId, message, ref handled);
+            _owner.OnMessageReceived(messageId, message, ref handled);
 
         private void HandleConnected(NetworkConnection connection) => _owner.OnConnected();
         private void HandleDisconnected(NetworkConnection connection) => _owner.OnDisconnected();
@@ -158,4 +187,5 @@ public class ReplicatedPeer : IDisposable
     private readonly Listener _listener;
     private readonly IDFamily<ReplicatedPeer> _idFamily = new();
     private ReplicationManager? _replicationManager;
+    private bool _disposed;
 }

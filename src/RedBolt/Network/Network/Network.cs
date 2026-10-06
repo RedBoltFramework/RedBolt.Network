@@ -50,13 +50,9 @@ public class Network : RedObject
     public void PostUpdate(float timeStep)
     {
         if (_updateNow)
-        {
             SendNetworkUpdateEvent(true);
-            SendNetworkUpdateSentEvent(true);
-        }
 
         SendNetworkUpdateEvent(false);
-        SendNetworkUpdateSentEvent(false);
     }
 
     internal void OnConnectionDisconnecting(NetworkConnection connection)
@@ -94,12 +90,6 @@ public class Network : RedObject
     private void SendNetworkUpdateEvent(bool isServer)
     {
         var eventData = new NetworkEvents.NetworkUpdateEvent { IsServer = isServer };
-        SendEvent(ref eventData);
-    }
-
-    private void SendNetworkUpdateSentEvent(bool isServer)
-    {
-        var eventData = new NetworkEvents.NetworkUpdateSentEvent { IsServer = isServer };
         SendEvent(ref eventData);
     }
 
