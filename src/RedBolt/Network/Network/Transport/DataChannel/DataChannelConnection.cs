@@ -133,6 +133,11 @@ public partial class DataChannelConnection : NetworkConnection
 
     public void SetMtu(nuint mtu) => _mtu = checked((int)mtu);
 
+    /// <summary>
+    /// Handle of the peer connection in the libdatachannel C API, or -1 when there is none.
+    /// The handle is valid until the connection disconnects or is disposed.
+    /// The caller must not delete it.
+    /// </summary>
     public int Peer => _peer;
 
     public void InitializeWithWebSocket(int webSocket, DataChannelServer? server = null)
@@ -143,7 +148,7 @@ public partial class DataChannelConnection : NetworkConnection
 
     public override void Dispose()
     {
-        if (_state is NetworkConnectionState.Connected or NetworkConnectionState.Connecting)
+        if (_state != NetworkConnectionState.Disconnected)
         {
             RedBolt.Logging.Log.GetLogger().LogWarning(
                 "DataChannelConnection was not properly disconnected before destruction. Forcing disconnect.");
