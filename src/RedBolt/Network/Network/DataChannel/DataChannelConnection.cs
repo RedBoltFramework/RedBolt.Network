@@ -52,16 +52,28 @@ public partial class DataChannelConnection : NetworkConnection
         if (_state is NetworkConnectionState.Disconnected or NetworkConnectionState.Disconnecting)
             return;
 
-        base.Disconnect();
+        var wasConnecting = _state == NetworkConnectionState.Connecting
+            && !Array.TrueForAll(_dataChannels, static channel => channel >= 0 && RtcIsOpen(channel));
         _state = NetworkConnectionState.Disconnecting;
 
-        if (_peer >= 0)
+        if (_peer >= 0 && !wasConnecting)
         {
+            base.Disconnect();
             ResetPeerCallbacks(_peer);
             RtcClosePeerConnection(_peer);
         }
         else
-            OnDataChannelDisconnected(0, false);
+        {
+            // The close of the peer gives no closed callback for a channel that did not open.
+            // The connection did not connect, so release it with no disconnected event.
+            for (var i = 0; i < _dataChannels.Length; ++i)
+                DeleteDataChannel(i);
+            CloseWebSocket();
+            ClosePeer();
+            Server?.RemoveConnection(this);
+            SetServer(null);
+            _state = NetworkConnectionState.Disconnected;
+        }
     }
 
     public override bool SendData(ReadOnlySpan<byte> data,

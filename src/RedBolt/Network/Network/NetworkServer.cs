@@ -110,7 +110,7 @@ public abstract class NetworkServer : RedObject
         _connections.Add(connection);
     }
 
-    protected void RemoveConnection(NetworkConnection connection)
+    protected internal void RemoveConnection(NetworkConnection connection)
     {
         _connections.RemoveAll(item => ReferenceEquals(item, connection));
     }
