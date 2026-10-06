@@ -516,7 +516,7 @@ public sealed class WebRTCSTUN : Application
         if (_server?.IsListening == true)
         {
             Log("Stopping server...");
-            foreach (var weakConnection in _serverConnections)
+            foreach (var weakConnection in _serverConnections.ToArray())
             {
                 if (weakConnection.TryGetTarget(out var connection))
                     connection.Disconnect();

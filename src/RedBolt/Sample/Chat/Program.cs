@@ -372,7 +372,7 @@ public sealed class Chat : Application
 
         if (_clientConnection is null)
         {
-            _clientConnection = new DataChannelConnection();
+            _clientConnection = GetSubsystem<RedBolt.Network.Network>().CreateConnection()!;
             _clientConnection.OnConnected += HandleClientConnected;
             _clientConnection.OnDisconnected += HandleClientDisconnected;
             _clientConnection.OnMessageReceived += HandleNetworkMessage;
@@ -390,7 +390,7 @@ public sealed class Chat : Application
             _clientConnection.Disconnect();
         else if (_server?.IsListening == true)
         {
-            foreach (var weakConnection in _serverConnections)
+            foreach (var weakConnection in _serverConnections.ToArray())
             {
                 if (weakConnection.TryGetTarget(out var connection))
                     connection.Disconnect();
@@ -404,7 +404,7 @@ public sealed class Chat : Application
     {
         if (_server is null)
         {
-            _server = new DataChannelServer();
+            _server = GetSubsystem<RedBolt.Network.Network>().CreateServer()!;
             _server.OnConnected += HandleServerConnected;
             _server.OnDisconnected += HandleServerDisconnected;
         }
@@ -476,8 +476,8 @@ public sealed class Chat : Application
     private readonly List<string> _chatHistory = [];
     private ImFont? _headingFont;
     private IntPtr _textBuffer;
-    private DataChannelServer? _server;
-    private DataChannelConnection? _clientConnection;
+    private NetworkServer? _server;
+    private NetworkConnection? _clientConnection;
     private readonly List<WeakReference<NetworkConnection>> _serverConnections = [];
     private bool _startServerOnLaunch;
     private string? _connectOnLaunch;

@@ -4,6 +4,7 @@
 
 namespace RedBolt.Network;
 
+using RedBolt.Container;
 using RedBolt.Core;
 
 /// <summary>Network subsystem that provides update scheduling and replication events.</summary>
@@ -22,6 +23,37 @@ public class Network : RedObject
     public static void RegisterNetworkLibrary(Context context)
     {
         context.RegisterAssembly(typeof(Network).Assembly);
+    }
+
+    // The DataChannel types have no object factory, so that the editor does not list them as components.
+    // Upstream has no factory for them either. Network creates them directly.
+
+    /// <summary>Create a network connection. An empty type creates a <see cref="DataChannelConnection"/>.</summary>
+    /// <returns>The new connection, or null if the type is unknown or is not a <see cref="NetworkConnection"/>.</returns>
+    public NetworkConnection? CreateConnection(StringHash type = default)
+    {
+        if (IsEmptyType(type) || type == typeof(DataChannelConnection).GetTypeId())
+            return new DataChannelConnection();
+
+        var created = Context.CreateObject(type);
+        if (created is NetworkConnection connection)
+            return connection;
+        created?.Dispose();
+        return null;
+    }
+
+    /// <summary>Create a network server. An empty type creates a <see cref="DataChannelServer"/>.</summary>
+    /// <returns>The new server, or null if the type is unknown or is not a <see cref="NetworkServer"/>.</returns>
+    public NetworkServer? CreateServer(StringHash type = default)
+    {
+        if (IsEmptyType(type) || type == typeof(DataChannelServer).GetTypeId())
+            return new DataChannelServer();
+
+        var created = Context.CreateObject(type);
+        if (created is NetworkServer server)
+            return server;
+        created?.Dispose();
+        return null;
     }
 
     public void SetUpdateFps(uint fps)
@@ -64,6 +96,9 @@ public class Network : RedObject
     {
         _stoppingServers.Add(server);
     }
+
+    // A default-initialized hash has the value zero, which differs from StringHash.Empty.
+    private static bool IsEmptyType(StringHash type) => type.IsEmpty() || type.Value == 0;
 
     private void HandleBeginFrame(ref CoreEvents.BeginFrameEvent eventData)
     {
