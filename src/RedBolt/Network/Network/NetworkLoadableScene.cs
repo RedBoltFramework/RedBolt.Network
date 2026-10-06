@@ -13,12 +13,12 @@ using RedBolt.Scene;
 public delegate void PrepareLoadSceneRequestHandler(
     NetworkLoadableScene sender, string sceneFileName, VectorBuffer request);
 public delegate void LoadSceneRequestReceivedHandler(
-    NetworkLoadableScene sender, string sceneFileName, MemoryBuffer request, ref bool accept);
+    NetworkLoadableScene sender, string sceneFileName, ReadOnlySpan<byte> request, ref bool accept);
 public delegate void LoadSceneStartedHandler(NetworkLoadableScene sender, string sceneFileName);
 public delegate void LoadSceneFinishedHandler(
     NetworkLoadableScene sender, string sceneFileName, ref bool success, VectorBuffer response);
 public delegate void RemoteLoadSceneFinishedHandler(
-    NetworkLoadableScene sender, string sceneFileName, bool success, MemoryBuffer response);
+    NetworkLoadableScene sender, string sceneFileName, bool success, ReadOnlySpan<byte> response);
 
 /// <summary>Helper class for network-driven scene loading.</summary>
 public class NetworkLoadableScene : RedObject
@@ -95,7 +95,7 @@ public class NetworkLoadableScene : RedObject
         PrepareLoadSceneRequest?.Invoke(this, sceneFileName, request);
 
     protected virtual void OnLoadSceneRequestReceived(
-        string sceneFileName, MemoryBuffer request, ref bool accept) =>
+        string sceneFileName, ReadOnlySpan<byte> request, ref bool accept) =>
         LoadSceneRequestReceived?.Invoke(this, sceneFileName, request, ref accept);
 
     protected virtual void OnLoadSceneStarted(string sceneFileName) =>
@@ -106,8 +106,20 @@ public class NetworkLoadableScene : RedObject
         LoadSceneFinished?.Invoke(this, sceneFileName, ref success, response);
 
     protected virtual void OnRemoteLoadSceneFinished(
-        string sceneFileName, bool success, MemoryBuffer response) =>
+        string sceneFileName, bool success, ReadOnlySpan<byte> response) =>
         RemoteLoadSceneFinished?.Invoke(this, sceneFileName, success, response);
+
+    // Read the scene file name from the start of the payload. The remaining payload starts at "consumed".
+    private static unsafe string ReadSceneFileName(ReadOnlySpan<byte> message, out int consumed)
+    {
+        fixed (byte* pointer = message)
+        {
+            using var reader = new MemoryBuffer((nint)pointer, (uint)message.Length, readOnly: true);
+            var sceneFileName = reader.ReadString();
+            consumed = checked((int)reader.Position);
+            return sceneFileName;
+        }
+    }
 
     private bool IsServerSideConnection() => _connection?.Server is not null;
 
@@ -138,12 +150,11 @@ public class NetworkLoadableScene : RedObject
 
         _expectedSceneName = sceneFileName;
         _loadState = LoadState.AwaitingRemoteLoadResult;
-        using var message = new MemoryBuffer(request);
-        _connection.SendMessage(NetworkMessageId.LoadScene, message, PacketType.ReliableOrdered);
+        _connection.SendMessage(NetworkMessageId.LoadScene, request.Buffer, PacketType.ReliableOrdered);
     }
 
     private void ProcessNetworkMessage(NetworkConnection connection, NetworkMessageId messageId,
-        MemoryBuffer message, ref bool handled)
+        ReadOnlySpan<byte> message, ref bool handled)
     {
         if (handled || !ReferenceEquals(connection, _connection))
             return;
@@ -161,7 +172,7 @@ public class NetworkLoadableScene : RedObject
         }
     }
 
-    private void ProcessLoadSceneRequest(MemoryBuffer message)
+    private void ProcessLoadSceneRequest(ReadOnlySpan<byte> message)
     {
         if (_connection is null)
             return;
@@ -176,9 +187,9 @@ public class NetworkLoadableScene : RedObject
             return;
         }
 
-        var sceneFileName = message.ReadString();
+        var sceneFileName = ReadSceneFileName(message, out var consumed);
         var accept = true;
-        OnLoadSceneRequestReceived(sceneFileName, message, ref accept);
+        OnLoadSceneRequestReceived(sceneFileName, message[consumed..], ref accept);
         if (!accept)
         {
             SendLocalLoadResult(sceneFileName, false);
@@ -189,7 +200,7 @@ public class NetworkLoadableScene : RedObject
             FinishLocalLoad(false);
     }
 
-    private void ProcessLoadSceneResult(MemoryBuffer message)
+    private void ProcessLoadSceneResult(ReadOnlySpan<byte> message)
     {
         if (_connection is null)
             return;
@@ -204,13 +215,13 @@ public class NetworkLoadableScene : RedObject
             return;
         }
 
-        var sceneFileName = message.ReadString();
-        if (message.Size - message.Position < sizeof(byte))
+        var sceneFileName = ReadSceneFileName(message, out var consumed);
+        if (message.Length - consumed < sizeof(byte))
         {
             HandleProtocolError("MSG_SCENE_LOAD_RESULT payload is too short: missing success flag");
             return;
         }
-        var success = message.ReadBool();
+        var success = message[consumed++] != 0;
         if (sceneFileName != _expectedSceneName)
         {
             HandleProtocolError("MSG_SCENE_LOAD_RESULT scene name does not match active request");
@@ -221,7 +232,7 @@ public class NetworkLoadableScene : RedObject
         _expectedSceneName = string.Empty;
         if (success)
             AssignConnectionReplicationManager(_replicationConnection, _scene);
-        OnRemoteLoadSceneFinished(sceneFileName, success, message);
+        OnRemoteLoadSceneFinished(sceneFileName, success, message[consumed..]);
     }
 
     private bool StartLocalLoad(string sceneFileName)
@@ -298,9 +309,8 @@ public class NetworkLoadableScene : RedObject
         messageData.WriteBool(effectiveSuccess);
         if (response.Size != 0)
             messageData.Write(response.Buffer);
-        using var message = new MemoryBuffer(messageData);
         _connection.SendMessage(NetworkMessageId.SceneLoadResult,
-            message, PacketType.ReliableOrdered);
+            messageData.Buffer, PacketType.ReliableOrdered);
     }
 
     private void HandleConnectionConnected(NetworkConnection connection)

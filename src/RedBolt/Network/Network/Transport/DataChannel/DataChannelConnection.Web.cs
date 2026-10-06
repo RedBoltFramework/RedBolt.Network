@@ -6,11 +6,11 @@
 namespace RedBolt.Network;
 
 using Microsoft.Extensions.Logging;
+using System.Buffers;
 using System.Runtime.InteropServices.JavaScript;
 using System.Runtime.Versioning;
 
 using RedBolt.Core;
-using RedBolt.IO;
 
 [Reflected(ObjectCategory.Category_Network, Factory = false, InheritAttributes = false)]
 public partial class DataChannelConnection : NetworkConnection
@@ -65,7 +65,7 @@ public partial class DataChannelConnection : NetworkConnection
         BrowserDataChannelInterop.Close(_id);
     }
 
-    public override bool SendData(MemoryBuffer data,
+    public override bool SendData(ReadOnlySpan<byte> data,
         PacketType type = PacketType.ReliableOrdered)
     {
         if (_state != NetworkConnectionState.Connected)
@@ -75,7 +75,7 @@ public partial class DataChannelConnection : NetworkConnection
             return false;
         }
 
-        var dataSize = data.Size - data.Position;
+        var dataSize = (uint)data.Length;
         if (dataSize > MaxMessageSize)
         {
             RedBolt.Logging.Log.GetLogger().LogError(
@@ -87,12 +87,8 @@ public partial class DataChannelConnection : NetworkConnection
         if (!base.SendData(data, type))
             return false;
 
-        var oldPosition = data.Position;
-        var payload = new byte[checked((int)(data.Size - oldPosition))];
-        data.Read(payload);
-        data.Seek(oldPosition);
         return BrowserDataChannelInterop.Send(
-            _id, (int)type, Convert.ToBase64String(payload));
+            _id, (int)type, Convert.ToBase64String(data));
     }
 
     public override uint MaxMessageSize => _state == NetworkConnectionState.Connected
@@ -129,15 +125,23 @@ public partial class DataChannelConnection : NetworkConnection
     {
         if (GetConnection(id) is not { } connection)
             return;
+
+        // Decode into a pooled buffer. The buffer is valid during the dispatch, which copies the data when needed.
+        var buffer = ArrayPool<byte>.Shared.Rent((payload.Length + 3) / 4 * 3);
         try
         {
-            using var data = new MemoryBuffer(Convert.FromBase64String(payload));
-            connection.DispatchDataReceived(data);
+            if (!Convert.TryFromBase64String(payload, buffer, out var size))
+            {
+                RedBolt.Logging.Log.GetLogger().LogError(
+                    "Browser WebRTC received an invalid payload.");
+                return;
+            }
+
+            connection.DispatchDataReceived(buffer.AsSpan(0, size));
         }
-        catch (FormatException exception)
+        finally
         {
-            RedBolt.Logging.Log.GetLogger().LogError(exception,
-                "Browser WebRTC received an invalid payload.");
+            ArrayPool<byte>.Shared.Return(buffer);
         }
     }
 

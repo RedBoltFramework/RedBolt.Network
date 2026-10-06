@@ -64,7 +64,7 @@ public partial class DataChannelConnection : NetworkConnection
             OnDataChannelDisconnected(0, false);
     }
 
-    public override bool SendData(MemoryBuffer data,
+    public override bool SendData(ReadOnlySpan<byte> data,
         PacketType type = PacketType.ReliableOrdered)
     {
         if (_state != NetworkConnectionState.Connected)
@@ -74,7 +74,7 @@ public partial class DataChannelConnection : NetworkConnection
             return false;
         }
 
-        var dataSize = data.Size - data.Position;
+        var dataSize = (uint)data.Length;
         if (dataSize > MaxMessageSize)
         {
             RedBolt.Logging.Log.GetLogger().LogError(
@@ -92,8 +92,7 @@ public partial class DataChannelConnection : NetworkConnection
         {
             if (RtcIsOpen(dataChannel))
             {
-                var payload = ReadRemaining(data);
-                return RtcSendMessage(dataChannel, payload, payload.Length) >= 0;
+                return RtcSendMessage(dataChannel, data, data.Length) >= 0;
             }
             RedBolt.Logging.Log.GetLogger().LogDebug(
                 "DataChannel {PacketType} is not open yet, message dropped.", index);
@@ -279,13 +278,13 @@ public partial class DataChannelConnection : NetworkConnection
         SetServer(null);
     }
 
-    private void OnDataChannelReceived(nint message, int size)
+    private unsafe void OnDataChannelReceived(nint message, int size)
     {
         if (size < 0)
             return;
 
-        using var data = new MemoryBuffer(DataChannelInterop.CopyBytes(message, size));
-        DispatchDataReceived(data);
+        // The native buffer is valid during the callback. Dispatch copies the data when it must outlive the call.
+        DispatchDataReceived(new ReadOnlySpan<byte>((void*)message, size));
     }
 
     private void OnWebSocketMessage(nint message, int size)
@@ -397,15 +396,6 @@ public partial class DataChannelConnection : NetworkConnection
         if (_selfHandle.IsAllocated)
             _selfHandle.Free();
         _state = NetworkConnectionState.Disconnected;
-    }
-
-    private static byte[] ReadRemaining(MemoryBuffer data)
-    {
-        var oldPosition = data.Position;
-        var result = new byte[checked((int)(data.Size - oldPosition))];
-        data.Read(result);
-        data.Seek(oldPosition);
-        return result;
     }
 
     private delegate int StringGetter(Span<sbyte> buffer, int size);

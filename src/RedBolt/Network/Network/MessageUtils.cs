@@ -45,17 +45,19 @@ public sealed class LargeMessageWriter : IDisposable
         {
             var payload = _buffer.Buffer;
             var maxMessageSize = _connection.MaxPayloadSize;
-            var numChunks = (_buffer.Size + maxMessageSize - 1) / maxMessageSize;
+            var numChunks = System.Math.Max(1u, (_buffer.Size + maxMessageSize - 1) / maxMessageSize);
             for (var i = 0u; i < numChunks; ++i)
             {
                 var isLastChunk = i + 1 == numChunks;
                 var messageId = isLastChunk ? _lastMessageId : _incompleteMessageId;
                 var chunkOffset = i * maxMessageSize;
+                // Upstream rbfx uses "buffer size % maxMessageSize" for the last chunk. That loses the last chunk
+                // when the buffer size is an exact multiple of the payload size, because the chunk size becomes 0.
+                // Upstream also sends nothing for an empty buffer, but a message with only an id is valid.
                 var chunkSize = isLastChunk ? _buffer.Size - chunkOffset : maxMessageSize;
                 var chunkData = payload.Slice(checked((int)chunkOffset), checked((int)chunkSize));
                 var chunkDebugInfo = isLastChunk ? _debugInfo.ToString() : string.Empty;
-                using var memory = new MemoryBuffer(chunkData.ToArray());
-                _connection.SendMessage(messageId, memory, PacketType.ReliableOrdered, chunkDebugInfo);
+                _connection.SendMessage(messageId, chunkData, PacketType.ReliableOrdered, chunkDebugInfo);
             }
         }
         _buffer.Clear();
@@ -81,7 +83,11 @@ public class LargeMessageReader
         _lastMessageId = lastMessageId;
     }
 
-    public void OnMessage(NetworkMessageId messageId, MemoryBuffer messageData,
+    /// <summary>
+    /// Add a message. The whole data of <paramref name="messageData" /> is appended, regardless of its position,
+    /// and the position moves to the end, as upstream rbfx does.
+    /// </summary>
+    public unsafe void OnMessage(NetworkMessageId messageId, MemoryBuffer messageData,
         Action<MemoryBuffer> onMessageReceived)
     {
         Debug.Assert(messageId == _incompleteMessageId || messageId == _lastMessageId);
@@ -93,7 +99,8 @@ public class LargeMessageReader
         else
         {
             _buffer.Seek(_buffer.Size);
-            CopyRemaining(messageData, _buffer);
+            _buffer.Write(new ReadOnlySpan<byte>((void*)messageData.GetData(), checked((int)messageData.Size)));
+            messageData.Seek(messageData.Size);
             if (messageId == _lastMessageId)
             {
                 using var memoryBuffer = new MemoryBuffer(_buffer);
@@ -101,16 +108,6 @@ public class LargeMessageReader
                 _buffer.Clear();
             }
         }
-    }
-
-    private static void CopyRemaining(MemoryBuffer source, VectorBuffer destination)
-    {
-        var oldPosition = source.Position;
-        var remaining = source.Size - oldPosition;
-        var data = new byte[checked((int)remaining)];
-        source.Read(data);
-        source.Seek(oldPosition);
-        destination.Write(data);
     }
 
     private readonly VectorBuffer _buffer;
@@ -181,10 +178,9 @@ public sealed class MultiMessageWriter : IDisposable
 
     private void SendPreviousPayloads()
     {
-        var payload = _buffer.Buffer[..checked((int)_nextPayloadOffset)].ToArray();
-        using var memory = new MemoryBuffer(payload);
+        var payload = _buffer.Buffer[..checked((int)_nextPayloadOffset)];
         var debugInfo = _debugInfo.ToString(0, checked((int)_nextDebugInfoOffset));
-        _connection.SendMessage(_messageId, memory, _packetType, debugInfo);
+        _connection.SendMessage(_messageId, payload, _packetType, debugInfo);
     }
 
     private readonly NetworkConnection _connection;
@@ -217,8 +213,7 @@ public static class NetworkMessageUtils
         buffer.Clear();
         message.Save(buffer);
 
-        using var memory = new MemoryBuffer(buffer);
-        connection.SendMessage(messageId, memory, messageType, message.ToString() ?? string.Empty);
+        connection.SendMessage(messageId, buffer.Buffer, messageType, message.ToString() ?? string.Empty);
     }
 
     [ThreadStatic]

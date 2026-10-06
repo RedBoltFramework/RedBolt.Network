@@ -5,7 +5,6 @@
 namespace RedBolt.Network;
 
 using RedBolt.Core;
-using RedBolt.IO;
 using RedBolt.Replica;
 
 public static class NetworkEvents
@@ -100,35 +99,58 @@ public static class NetworkEvents
         public NetworkServer Server;
     }
 
+    /// <summary>Data is received by the connection.</summary>
+    /// <remarks>
+    /// The event does not own the data. The data is valid only while the event handlers run.
+    /// Copy the data to keep it. Upstream passes the same pointer and size pair.
+    /// </remarks>
     public struct ClientDataEvent
     {
         public NetworkConnection Connection;
-        public MemoryBuffer Data;
+        public nint DataPointer;
+        public int Size;
         public bool Handled;
+
+        public readonly unsafe ReadOnlySpan<byte> Data => new((void*)DataPointer, Size);
     }
 
+    /// <summary>Network message is received by the connection.</summary>
+    /// <remarks>The data is the message payload. It is valid only while the event handlers run.</remarks>
     public struct ClientMessageEvent
     {
         public NetworkConnection Connection;
         public NetworkMessageId MessageId;
-        public MemoryBuffer Data;
+        public nint DataPointer;
+        public int Size;
         public bool Handled;
+
+        public readonly unsafe ReadOnlySpan<byte> Data => new((void*)DataPointer, Size);
     }
 
+    /// <summary>Data is about to be sent by the connection.</summary>
+    /// <remarks>The data is valid only while the event handlers run.</remarks>
     public struct ClientSendDataEvent
     {
         public NetworkConnection Connection;
         public PacketType Type;
-        public MemoryBuffer Data;
+        public nint DataPointer;
+        public int Size;
         public bool Handled;
+
+        public readonly unsafe ReadOnlySpan<byte> Data => new((void*)DataPointer, Size);
     }
 
+    /// <summary>Network message is about to be sent by the connection.</summary>
+    /// <remarks>The data is the message payload. It is valid only while the event handlers run.</remarks>
     public struct ClientSendMessageEvent
     {
         public NetworkConnection Connection;
         public NetworkMessageId MessageId;
         public PacketType Type;
-        public MemoryBuffer Data;
+        public nint DataPointer;
+        public int Size;
         public bool Handled;
+
+        public readonly unsafe ReadOnlySpan<byte> Data => new((void*)DataPointer, Size);
     }
 }

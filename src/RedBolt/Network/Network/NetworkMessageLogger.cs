@@ -4,7 +4,6 @@
 
 namespace RedBolt.Network;
 
-using RedBolt.IO;
 using RedBolt.Logging;
 
 /// <summary>Helper for logging sent and received network messages.</summary>
@@ -41,7 +40,7 @@ public class NetworkMessageLogger
             : LogLevel.Trace;
     }
 
-    public virtual void LogSentMessage(NetworkMessageId messageId, MemoryBuffer data,
+    public virtual void LogSentMessage(NetworkMessageId messageId, ReadOnlySpan<byte> data,
         PacketType packetType, string debugInfo = "")
     {
         var logLevel = GetMessageLogLevel(messageId);
@@ -49,33 +48,33 @@ public class NetworkMessageLogger
             return;
 
         Log.GetLogger().Write(logLevel, "Message #{} ({} bytes) sent{}{}{}{}",
-            (uint)messageId, data.Size,
+            (uint)messageId, data.Length,
             packetType.HasFlag(PacketType.Reliable) ? ", reliable" : string.Empty,
             packetType.HasFlag(PacketType.Ordered) ? ", ordered" : string.Empty,
             string.IsNullOrEmpty(debugInfo) ? string.Empty : ": ", debugInfo);
     }
 
     public virtual void LogReceivedMessage(
-        NetworkMessageId messageId, MemoryBuffer data, string debugInfo = "")
+        NetworkMessageId messageId, ReadOnlySpan<byte> data, string debugInfo = "")
     {
         var logLevel = GetMessageLogLevel(messageId);
         if (logLevel == LogLevel.None)
             return;
 
         Log.GetLogger().Write(logLevel, "Message #{} ({} bytes) received{}{}",
-            (uint)messageId, data.Size,
+            (uint)messageId, data.Length,
             string.IsNullOrEmpty(debugInfo) ? string.Empty : ": ", debugInfo);
     }
 
     private void HandleSendMessage(NetworkConnection sender, NetworkMessageId messageId,
-        MemoryBuffer data, PacketType type, string debugInfo, ref bool handled)
+        ReadOnlySpan<byte> data, PacketType type, string debugInfo, ref bool handled)
     {
         if (!handled)
             LogSentMessage(messageId, data, type, debugInfo);
     }
 
     private void HandleMessageReceived(NetworkConnection sender, NetworkMessageId messageId,
-        MemoryBuffer data, ref bool handled)
+        ReadOnlySpan<byte> data, ref bool handled)
     {
         LogReceivedMessage(messageId, data);
     }

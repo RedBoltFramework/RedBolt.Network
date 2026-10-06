@@ -366,10 +366,9 @@ public sealed class WebRTCSTUN : Application
 
         using var data = new VectorBuffer();
         data.WriteString(text);
-        using var message = new MemoryBuffer(data);
         if (_clientConnection?.IsConnected == true)
         {
-            _clientConnection.SendMessage(ChatMessage, message);
+            _clientConnection.SendMessage(ChatMessage, data.Buffer);
             ShowChatText("[You -> Server] " + text);
         }
         else if (_server is not null &&
@@ -378,7 +377,7 @@ public sealed class WebRTCSTUN : Application
             foreach (var weakConnection in _serverConnections)
             {
                 if (weakConnection.TryGetTarget(out var connection))
-                    connection.SendMessage(ChatMessage, message);
+                    connection.SendMessage(ChatMessage, data.Buffer);
             }
             ShowChatText("[Server -> All] " + text);
         }
@@ -590,11 +589,10 @@ public sealed class WebRTCSTUN : Application
 
         using var data = new VectorBuffer();
         data.WriteString($"Client {clientId} joined from {type} ({_serverConnections.Count} online)");
-        using var message = new MemoryBuffer(data);
         foreach (var weakConnection in _serverConnections)
         {
             if (weakConnection.TryGetTarget(out var other) && !ReferenceEquals(other, connection))
-                other.SendMessage(SystemMessage, message);
+                other.SendMessage(SystemMessage, data.Buffer);
         }
     }
 
@@ -619,11 +617,10 @@ public sealed class WebRTCSTUN : Application
 
         using var data = new VectorBuffer();
         data.WriteString($"Client {disconnectedId} left ({_serverConnections.Count} online)");
-        using var message = new MemoryBuffer(data);
         foreach (var weakConnection in _serverConnections)
         {
             if (weakConnection.TryGetTarget(out var other))
-                other.SendMessage(SystemMessage, message);
+                other.SendMessage(SystemMessage, data.Buffer);
         }
     }
 
@@ -646,7 +643,17 @@ public sealed class WebRTCSTUN : Application
             Log("Disconnected from server.");
     }
 
-    private void HandleNetworkMessage(NetworkConnection connection,
+    private unsafe void HandleNetworkMessage(NetworkConnection connection,
+        NetworkMessageId messageId, ReadOnlySpan<byte> messagePayload, ref bool handled)
+    {
+        fixed (byte* pointer = messagePayload)
+        {
+            using var message = new MemoryBuffer((nint)pointer, (uint)messagePayload.Length, true);
+            ProcessNetworkMessage(connection, messageId, message, ref handled);
+        }
+    }
+
+    private void ProcessNetworkMessage(NetworkConnection connection,
         NetworkMessageId messageId, MemoryBuffer message, ref bool handled)
     {
         if (messageId == SystemMessage)
@@ -676,11 +683,10 @@ public sealed class WebRTCSTUN : Application
             ShowChatText($"Client {senderId}: {text}");
             using var data = new VectorBuffer();
             data.WriteString($"Client {senderId}: {text}");
-            using var outgoing = new MemoryBuffer(data);
             foreach (var weakConnection in _serverConnections)
             {
                 if (weakConnection.TryGetTarget(out var other) && !ReferenceEquals(other, connection))
-                    other.SendMessage(ChatMessage, outgoing);
+                    other.SendMessage(ChatMessage, data.Buffer);
             }
         }
         else

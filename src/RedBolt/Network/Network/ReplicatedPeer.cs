@@ -66,11 +66,22 @@ public class ReplicatedPeer : IDisposable
         GC.SuppressFinalize(this);
     }
 
-    private void ProcessReplicationMessage(NetworkMessageId messageId, MemoryBuffer message, ref bool handled)
+    private unsafe void ProcessReplicationMessage(
+        NetworkMessageId messageId, ReadOnlySpan<byte> message, ref bool handled)
     {
         if (handled || _replicationManager is null)
             return;
 
+        // The replication code reads the message as a stream. The span is valid during this call.
+        fixed (byte* pointer = message)
+        {
+            using var messageReader = new MemoryBuffer((nint)pointer, (uint)message.Length, readOnly: true);
+            ProcessReplicationMessage(messageId, messageReader, ref handled);
+        }
+    }
+
+    private void ProcessReplicationMessage(NetworkMessageId messageId, MemoryBuffer message, ref bool handled)
+    {
         if (messageId == NetworkMessageId.ClockSync)
         {
             var clockMessage = NetworkMessageUtils.ReadSerializedMessage<ClockSynchronizerMessage>(message);
@@ -133,7 +144,7 @@ public class ReplicatedPeer : IDisposable
             _owner.SendReplicationMessages();
 
         private void HandleMessageReceived(NetworkConnection connection, NetworkMessageId messageId,
-            MemoryBuffer message, ref bool handled) =>
+            ReadOnlySpan<byte> message, ref bool handled) =>
             _owner.ProcessReplicationMessage(messageId, message, ref handled);
 
         private void HandleConnected(NetworkConnection connection) => _owner.OnConnected();

@@ -78,16 +78,16 @@ public class NetworkStatisticsCounter
         PacketsOutPerSec = PacketsOutPerSec
     };
 
-    private void HandleSendData(NetworkConnection connection, MemoryBuffer data,
+    private void HandleSendData(NetworkConnection connection, ReadOnlySpan<byte> data,
         PacketType type, ref bool handled)
     {
         if (!handled)
-            AddOutgoingPacket(data.Size);
+            AddOutgoingPacket((uint)data.Length);
     }
 
-    private void HandleDataReceived(NetworkConnection connection, MemoryBuffer data, ref bool handled)
+    private void HandleDataReceived(NetworkConnection connection, ReadOnlySpan<byte> data, ref bool handled)
     {
-        AddIncomingPacket(data.Size);
+        AddIncomingPacket((uint)data.Length);
     }
 
     private readonly TimedCounter _packetCounterIncoming;

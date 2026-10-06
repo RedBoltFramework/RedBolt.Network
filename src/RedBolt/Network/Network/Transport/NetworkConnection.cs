@@ -4,18 +4,28 @@
 
 namespace RedBolt.Network;
 
-using RedBolt.Core;
-using RedBolt.IO;
+using System.Diagnostics;
 
+using RedBolt.Core;
+using RedBolt.Math;
+
+/// <summary>Handler of received data. The span is valid only during the call.</summary>
 public delegate void NetworkDataHandler(
-    NetworkConnection connection, MemoryBuffer data, ref bool handled);
+    NetworkConnection connection, ReadOnlySpan<byte> data, ref bool handled);
+/// <summary>
+/// Handler of data to send. The span is valid only during the call.
+/// A handler must not send on the same connection during the call.
+/// </summary>
 public delegate void NetworkSendDataHandler(
-    NetworkConnection connection, MemoryBuffer data, PacketType type, ref bool handled);
+    NetworkConnection connection, ReadOnlySpan<byte> data, PacketType type, ref bool handled);
+/// <summary>Handler of a received message. The span is the message payload and is valid only during the call.</summary>
 public delegate void NetworkMessageHandler(
-    NetworkConnection connection, NetworkMessageId messageId, MemoryBuffer data, ref bool handled);
+    NetworkConnection connection, NetworkMessageId messageId, ReadOnlySpan<byte> messagePayload,
+    ref bool handled);
+/// <summary>Handler of a message to send. The span is the message payload and is valid only during the call.</summary>
 public delegate void NetworkSendMessageHandler(
-    NetworkConnection connection, NetworkMessageId messageId, MemoryBuffer data, PacketType type,
-    string debugInfo, ref bool handled);
+    NetworkConnection connection, NetworkMessageId messageId, ReadOnlySpan<byte> messagePayload,
+    PacketType type, string debugInfo, ref bool handled);
 
 public enum NetworkConnectionState
 {
@@ -27,6 +37,13 @@ public enum NetworkConnectionState
 
 public abstract class NetworkConnection : RedObject
 {
+    protected NetworkConnection()
+    {
+        // The work queue is cached here. Network threads must not read the subsystem dictionary of the context.
+        _workQueue = Context.GetSubsystem<WorkQueue>();
+        _processQueuedPacketsTask = (_, _) => ProcessQueuedPackets();
+    }
+
     public abstract bool Connect(URL url);
 
     public virtual void Disconnect()
@@ -34,15 +51,24 @@ public abstract class NetworkConnection : RedObject
         NotifyDisconnecting();
     }
 
-    public virtual bool SendData(MemoryBuffer data, PacketType type = PacketType.ReliableOrdered)
+    /// <summary>
+    /// Send data as is via the underlying transport. Data may be copied and sent asynchronously.
+    /// An implementation must not send on the same connection during the call, and must copy the span
+    /// if it keeps the data.
+    /// </summary>
+    public virtual unsafe bool SendData(ReadOnlySpan<byte> data, PacketType type = PacketType.ReliableOrdered)
     {
         var eventData = new NetworkEvents.ClientSendDataEvent
         {
             Connection = this,
             Type = type,
-            Data = data
+            Size = data.Length
         };
-        SendEvent(ref eventData);
+        fixed (byte* pointer = data)
+        {
+            eventData.DataPointer = (nint)pointer;
+            SendEvent(ref eventData);
+        }
 
         var handled = eventData.Handled;
         if (!handled)
@@ -50,7 +76,8 @@ public abstract class NetworkConnection : RedObject
         return !handled;
     }
 
-    public virtual bool SendMessage(NetworkMessageId messageId, MemoryBuffer data,
+    /// <summary>Send a network message. Data may be copied and sent asynchronously.</summary>
+    public virtual unsafe bool SendMessage(NetworkMessageId messageId, ReadOnlySpan<byte> data,
         PacketType type = PacketType.ReliableOrdered, string debugInfo = "")
     {
         var eventData = new NetworkEvents.ClientSendMessageEvent
@@ -58,9 +85,13 @@ public abstract class NetworkConnection : RedObject
             Connection = this,
             MessageId = messageId,
             Type = type,
-            Data = data
+            Size = data.Length
         };
-        SendEvent(ref eventData);
+        fixed (byte* pointer = data)
+        {
+            eventData.DataPointer = (nint)pointer;
+            SendEvent(ref eventData);
+        }
 
         var handled = eventData.Handled;
         if (!handled)
@@ -68,11 +99,25 @@ public abstract class NetworkConnection : RedObject
         if (handled)
             return false;
 
-        _outgoing.WriteVLE((uint)messageId);
-        CopyAll(data, _outgoing);
-        var sent = SendData(new MemoryBuffer(_outgoing), type);
-        _outgoing.Clear();
-        return sent;
+        // The outgoing buffer is reused and grows only when needed, so a message does not allocate.
+        // A nested send on the same connection would overwrite the buffer, so it is not allowed.
+        Debug.Assert(!_sendInProgress, "Nested send on the same connection from a send handler or SendData");
+        _sendInProgress = true;
+        try
+        {
+            Span<byte> header = stackalloc byte[5];
+            var headerSize = WriteVle(header, (uint)messageId);
+            var size = checked(headerSize + data.Length);
+            if (_outgoing.Length < size)
+                Array.Resize(ref _outgoing, size);
+            header[..headerSize].CopyTo(_outgoing);
+            data.CopyTo(_outgoing.AsSpan(headerSize));
+            return SendData(_outgoing.AsSpan(0, size), type);
+        }
+        finally
+        {
+            _sendInProgress = false;
+        }
     }
 
     /// <summary>Maximum size of a raw network message, including the message header.</summary>
@@ -103,7 +148,18 @@ public abstract class NetworkConnection : RedObject
     public event NetworkSendDataHandler? OnSendData;
     public event NetworkSendMessageHandler? OnSendMessage;
 
-    public virtual void HandleConnected()
+    protected void NotifyDisconnecting()
+    {
+        Context.GetSubsystem<Network>()?.OnConnectionDisconnecting(this);
+    }
+
+    protected void SetServer(NetworkServer? server)
+    {
+        _server = server;
+    }
+
+    /// <summary>Called once, when the connection is set up and data can be sent and received. Runs on the main thread.</summary>
+    protected virtual void HandleConnected()
     {
         OnConnected?.Invoke(this);
         var eventData = new NetworkEvents.ClientConnectedEvent
@@ -115,7 +171,8 @@ public abstract class NetworkConnection : RedObject
         SendEvent(ref eventData);
     }
 
-    public virtual void HandleDisconnected()
+    /// <summary>Called once, when the disconnection starts (only if <see cref="HandleConnected" /> was called). Runs on the main thread.</summary>
+    protected virtual void HandleDisconnected()
     {
         OnDisconnected?.Invoke(this);
         var eventData = new NetworkEvents.ClientDisconnectedEvent
@@ -127,39 +184,42 @@ public abstract class NetworkConnection : RedObject
         SendEvent(ref eventData);
     }
 
-    public virtual bool HandleDataReceived(MemoryBuffer message)
+    /// <summary>
+    /// Called when data is received. May be called from a non-main thread, depending on the configuration.
+    /// Return true when the message was processed and other handlers must not get it.
+    /// </summary>
+    protected virtual unsafe bool HandleDataReceived(ReadOnlySpan<byte> message)
     {
-        var messageId = (NetworkMessageId)message.ReadVLE();
+        var messageId = (NetworkMessageId)ReadVle(message, out var headerSize);
+        var payload = message[headerSize..];
+
         var eventData = new NetworkEvents.ClientMessageEvent
         {
             Connection = this,
             MessageId = messageId,
-            Data = message
+            Size = payload.Length
         };
-        SendEvent(ref eventData);
+        fixed (byte* pointer = payload)
+        {
+            eventData.DataPointer = (nint)pointer;
+            SendEvent(ref eventData);
+        }
 
         var handled = eventData.Handled;
         if (!handled)
-            OnMessageReceived?.Invoke(this, messageId, message, ref handled);
-        return handled || HandleMessageReceived(messageId, message);
+            OnMessageReceived?.Invoke(this, messageId, payload, ref handled);
+        return handled || HandleMessageReceived(messageId, payload);
     }
 
-    public virtual bool HandleMessageReceived(NetworkMessageId messageId, MemoryBuffer message) => false;
-
-    protected void NotifyDisconnecting()
-    {
-        Context.GetSubsystem<Network>()?.OnConnectionDisconnecting(this);
-    }
-
-    protected void SetServer(NetworkServer? server)
-    {
-        _server = server;
-    }
+    /// <summary>
+    /// Called when a network message is received. May be called from a non-main thread.
+    /// Return true when the message was processed and other handlers must not get it.
+    /// </summary>
+    protected virtual bool HandleMessageReceived(NetworkMessageId messageId, ReadOnlySpan<byte> message) => false;
 
     protected void DispatchConnected()
     {
-        var workQueue = Context.GetSubsystem<WorkQueue>()!;
-        workQueue.PostTaskForMainThread(() =>
+        RunTaskOnMainThread(() =>
         {
             _state = NetworkConnectionState.Connected;
             HandleConnected();
@@ -168,20 +228,27 @@ public abstract class NetworkConnection : RedObject
 
     protected void DispatchDisconnected()
     {
-        var workQueue = Context.GetSubsystem<WorkQueue>()!;
-        workQueue.PostTaskForMainThread(() =>
+        RunTaskOnMainThread(() =>
         {
             _state = NetworkConnectionState.Disconnected;
             HandleDisconnected();
         });
     }
 
-    protected void DispatchDataReceived(MemoryBuffer message)
+    /// <summary>
+    /// Dispatch received data from the transport. The span is valid only during the call.
+    /// When the data must be processed on another thread, the data is copied.
+    /// </summary>
+    protected unsafe void DispatchDataReceived(ReadOnlySpan<byte> message)
     {
         if (!ProcessDataOnMainThread || WorkQueue.IsMainThread())
         {
-            var eventData = new NetworkEvents.ClientDataEvent { Connection = this, Data = message };
-            SendEvent(ref eventData);
+            var eventData = new NetworkEvents.ClientDataEvent { Connection = this, Size = message.Length };
+            fixed (byte* pointer = message)
+            {
+                eventData.DataPointer = (nint)pointer;
+                SendEvent(ref eventData);
+            }
 
             var handled = eventData.Handled;
             if (!handled)
@@ -193,7 +260,7 @@ public abstract class NetworkConnection : RedObject
             QueueIncomingPacket(message);
     }
 
-    protected void DispatchMessageReceived(NetworkMessageId messageId, MemoryBuffer message)
+    protected void DispatchMessageReceived(NetworkMessageId messageId, ReadOnlySpan<byte> message)
     {
         HandleMessageReceived(messageId, message);
     }
@@ -202,83 +269,117 @@ public abstract class NetworkConnection : RedObject
     protected string _address = string.Empty;
     protected ushort _port;
 
-    private void QueueIncomingPacket(MemoryBuffer message)
+    private WorkQueue GetWorkQueue() => _workQueue ?? Context.GetSubsystem<WorkQueue>()!;
+
+    // Same as upstream WorkQueue::RunTaskOnMainThread: run now on the main thread, otherwise run between frames.
+    private void RunTaskOnMainThread(Action task)
     {
-        var packet = CopyBuffer(message);
-        lock (_mutex)
-        {
-            _incoming.Add(packet);
-            if (_incoming.Count > 1)
-                return;
-        }
-        Context.GetSubsystem<WorkQueue>()!.PostDelayedTaskForMainThread(ProcessQueuedPackets);
+        if (WorkQueue.IsMainThread())
+            task();
+        else
+            GetWorkQueue().PostDelayedTaskForMainThread(task);
     }
 
-    private void ProcessQueuedPackets()
+    private void QueueIncomingPacket(ReadOnlySpan<byte> message)
     {
         lock (_mutex)
         {
-            (_incoming, _incomingBack) = (_incomingBack, _incoming);
-        }
-
-        foreach (var packet in _incomingBack)
-        {
-            using var message = new MemoryBuffer(packet);
-            DispatchDataReceived(message);
-        }
-
-        lock (_mutex)
-        {
-            foreach (var packet in _incomingBack)
-            {
-                packet.Clear();
-                _buffers.Add(packet);
-            }
-            _incomingBack.Clear();
-        }
-    }
-
-    private VectorBuffer CopyBuffer(MemoryBuffer message)
-    {
-        VectorBuffer packet;
-        lock (_mutex)
-        {
+            IncomingPacket packet;
             if (_buffers.Count != 0)
             {
                 packet = _buffers[^1];
                 _buffers.RemoveAt(_buffers.Count - 1);
             }
             else
-                packet = new VectorBuffer();
+                packet = new IncomingPacket();
+
+            packet.Set(message);
+            _incoming.Add(packet);
+
+            // First packet schedules a callback on the main thread. If more packets arrive after that time,
+            // they are processed in the same callback to avoid flooding the main thread with tasks.
+            if (_incoming.Count > 1)
+                return;
         }
 
-        var oldPosition = message.Position;
-        message.Seek(0);
-        var data = new byte[checked((int)message.Size)];
-        message.Read(data);
-        message.Seek(oldPosition);
-        packet.SetData(data);
-        return packet;
+        GetWorkQueue().PostTaskForMainThread(_processQueuedPacketsTask);
     }
 
-    private static void CopyAll(MemoryBuffer source, VectorBuffer destination)
+    private void ProcessQueuedPackets()
     {
-        if (source.Size == 0)
-            return;
+        // Move the front buffer to the back buffer.
+        lock (_mutex)
+        {
+            (_incoming, _incomingBack) = (_incomingBack, _incoming);
+        }
 
-        var oldPosition = source.Position;
-        source.Seek(0);
-        var data = new byte[checked((int)source.Size)];
-        source.Read(data);
-        source.Seek(oldPosition);
-        destination.Write(data);
+        // Process the back buffer packets while the network thread queues new packets to the front buffer.
+        var processed = 0;
+        try
+        {
+            while (processed < _incomingBack.Count)
+            {
+                var packet = _incomingBack[processed++];
+                DispatchDataReceived(packet.Data.AsSpan(0, packet.Length));
+            }
+        }
+        finally
+        {
+            // A handler that throws leaves the rest of the packets undispatched. They are recycled too.
+            var dropped = _incomingBack.Count - processed;
+
+            // Recycle the back buffer packets.
+            lock (_mutex)
+            {
+                _buffers.AddRange(_incomingBack);
+                _incomingBack.Clear();
+            }
+
+            if (dropped > 0)
+                Logging.Log.GetLogger().Warning("Dropped {} queued packets because a data handler failed", dropped);
+        }
     }
 
-    private readonly VectorBuffer _outgoing = new();
+    // Write a variable-length encoded unsigned integer, as in Serializer.WriteVLE. Return the number of bytes.
+    private static int WriteVle(Span<byte> destination, uint value) =>
+        (int)MathDefs.EncodeVariableLength(value, destination);
+
+    // Read a variable-length encoded unsigned integer. Missing bytes are read as zero, as in Deserializer.ReadVLE.
+    private static uint ReadVle(ReadOnlySpan<byte> source, out int size)
+    {
+        var result = 0u;
+        var offset = 0u;
+        size = 0;
+        while (offset < 32 && size < source.Length)
+        {
+            if (MathDefs.DecodeVariableLength(ref result, ref offset, source[size++]))
+                break;
+        }
+        return result;
+    }
+
+    private sealed class IncomingPacket
+    {
+        public byte[] Data = [];
+        public int Length;
+
+        public void Set(ReadOnlySpan<byte> message)
+        {
+            if (Data.Length < message.Length)
+                Data = new byte[message.Length];
+            message.CopyTo(Data);
+            Length = message.Length;
+        }
+    }
+
+    private readonly WorkQueue? _workQueue;
+    private readonly TaskFunctionDelegate _processQueuedPacketsTask;
+    private byte[] _outgoing = new byte[64];
+    private bool _sendInProgress;
     private NetworkServer? _server;
 
     private readonly object _mutex = new();
-    private List<VectorBuffer> _incoming = [];
-    private List<VectorBuffer> _incomingBack = [];
-    private readonly List<VectorBuffer> _buffers = [];
+    private List<IncomingPacket> _incoming = [];
+    private List<IncomingPacket> _incomingBack = [];
+    private readonly List<IncomingPacket> _buffers = [];
 }

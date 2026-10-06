@@ -358,8 +358,7 @@ public sealed class Chat : Application
         {
             using var data = new VectorBuffer();
             data.WriteString(text);
-            using var message = new MemoryBuffer(data);
-            _clientConnection.SendMessage(ChatMessage, message);
+            _clientConnection.SendMessage(ChatMessage, data.Buffer);
             ClearText();
         }
     }
@@ -432,7 +431,17 @@ public sealed class Chat : Application
     {
     }
 
-    private void HandleNetworkMessage(NetworkConnection connection,
+    private unsafe void HandleNetworkMessage(NetworkConnection connection,
+        NetworkMessageId messageId, ReadOnlySpan<byte> messagePayload, ref bool handled)
+    {
+        fixed (byte* pointer = messagePayload)
+        {
+            using var message = new MemoryBuffer((nint)pointer, (uint)messagePayload.Length, true);
+            ProcessNetworkMessage(connection, messageId, message, ref handled);
+        }
+    }
+
+    private void ProcessNetworkMessage(NetworkConnection connection,
         NetworkMessageId messageId, MemoryBuffer message, ref bool handled)
     {
         if (messageId != ChatMessage)
@@ -447,11 +456,10 @@ public sealed class Chat : Application
 
             using var data = new VectorBuffer();
             data.WriteString(text);
-            using var outgoing = new MemoryBuffer(data);
             foreach (var weakConnection in _serverConnections)
             {
                 if (weakConnection.TryGetTarget(out var serverConnection))
-                    serverConnection.SendMessage(ChatMessage, outgoing);
+                    serverConnection.SendMessage(ChatMessage, data.Buffer);
             }
         }
         ShowChatText(text);
