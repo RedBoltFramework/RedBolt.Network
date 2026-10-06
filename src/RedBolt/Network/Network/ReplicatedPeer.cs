@@ -115,17 +115,17 @@ public class ReplicatedPeer : IDisposable
         public Listener(ReplicatedPeer owner)
         {
             _owner = owner;
-            owner._connection.MessageReceived += HandleMessageReceived;
-            owner._connection.Connected += HandleConnected;
-            owner._connection.Disconnected += HandleDisconnected;
+            owner._connection.OnMessageReceived += HandleMessageReceived;
+            owner._connection.OnConnected += HandleConnected;
+            owner._connection.OnDisconnected += HandleDisconnected;
             SubscribeToEvent<CoreEvents.PostUpdateEvent>(HandlePostUpdate);
         }
 
         public override void Dispose()
         {
-            _owner._connection.MessageReceived -= HandleMessageReceived;
-            _owner._connection.Connected -= HandleConnected;
-            _owner._connection.Disconnected -= HandleDisconnected;
+            _owner._connection.OnMessageReceived -= HandleMessageReceived;
+            _owner._connection.OnConnected -= HandleConnected;
+            _owner._connection.OnDisconnected -= HandleDisconnected;
             base.Dispose();
         }
 

@@ -75,11 +75,11 @@ public partial class DataChannelConnection : NetworkConnection
         }
 
         var dataSize = data.Size - data.Position;
-        if (dataSize > MaxMessageSize + NetworkProtocol.NetworkMessageHeaderSize)
+        if (dataSize > MaxMessageSize)
         {
             RedBolt.Logging.Log.GetLogger().LogError(
                 "DataChannel tried to send {DataSize} bytes, which is more than max allowed {MaxSize} bytes of data per message.",
-                dataSize, MaxMessageSize + NetworkProtocol.NetworkMessageHeaderSize);
+                dataSize, MaxMessageSize);
             return false;
         }
 
@@ -110,7 +110,7 @@ public partial class DataChannelConnection : NetworkConnection
 
     public override uint MaxMessageSize =>
         _state == NetworkConnectionState.Connected && _dataChannels[0] >= 0
-            ? unchecked(MaxPacketSize - (uint)NetworkProtocol.NetworkMessageHeaderSize)
+            ? base.MaxMessageSize
             : 0;
 
     public void SetIceServers(IEnumerable<string> servers)
@@ -245,7 +245,7 @@ public partial class DataChannelConnection : NetworkConnection
         }
 
         _address = ReadNativeString((buffer, size) => RtcGetRemoteAddress(_peer, buffer, size));
-        DoOnConnected();
+        DispatchConnected();
 
         if (Server is DataChannelServer server)
             server.DoOnConnected(this);
@@ -269,7 +269,7 @@ public partial class DataChannelConnection : NetworkConnection
         }
 
         if (notifyCallbacks)
-            DoOnDisconnected();
+            DispatchDisconnected();
 
         if (Server is DataChannelServer server)
             server.DoOnDisconnected(this);
@@ -285,7 +285,7 @@ public partial class DataChannelConnection : NetworkConnection
             return;
 
         using var data = new MemoryBuffer(DataChannelInterop.CopyBytes(message, size));
-        DoOnData(data);
+        DispatchDataReceived(data);
     }
 
     private void OnWebSocketMessage(nint message, int size)

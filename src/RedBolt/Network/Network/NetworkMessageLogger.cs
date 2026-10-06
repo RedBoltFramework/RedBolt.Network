@@ -25,8 +25,8 @@ public class NetworkMessageLogger
             return;
 
         _connection = connection;
-        connection.SendMessageRequested += OnSendMessage;
-        connection.MessageReceived += OnMessage;
+        connection.OnSendMessage += HandleSendMessage;
+        connection.OnMessageReceived += HandleMessageReceived;
     }
 
     public bool IsEnabled { get; set; } = true;
@@ -67,14 +67,14 @@ public class NetworkMessageLogger
             string.IsNullOrEmpty(debugInfo) ? string.Empty : ": ", debugInfo);
     }
 
-    private void OnSendMessage(NetworkConnection sender, NetworkMessageId messageId,
-        MemoryBuffer data, PacketType type, ref bool handled)
+    private void HandleSendMessage(NetworkConnection sender, NetworkMessageId messageId,
+        MemoryBuffer data, PacketType type, string debugInfo, ref bool handled)
     {
         if (!handled)
-            LogSentMessage(messageId, data, type, sender.DebugInfoBuffer.ToString());
+            LogSentMessage(messageId, data, type, debugInfo);
     }
 
-    private void OnMessage(NetworkConnection sender, NetworkMessageId messageId,
+    private void HandleMessageReceived(NetworkConnection sender, NetworkMessageId messageId,
         MemoryBuffer data, ref bool handled)
     {
         LogReceivedMessage(messageId, data);

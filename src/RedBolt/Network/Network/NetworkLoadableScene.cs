@@ -55,9 +55,9 @@ public class NetworkLoadableScene : RedObject
 
         if (_connection is not null)
         {
-            _connection.MessageReceived -= ProcessNetworkMessage;
-            _connection.Connected -= HandleConnectionConnected;
-            _connection.Disconnected -= HandleConnectionDisconnected;
+            _connection.OnMessageReceived -= ProcessNetworkMessage;
+            _connection.OnConnected -= HandleConnectionConnected;
+            _connection.OnDisconnected -= HandleConnectionDisconnected;
         }
 
         _connection = connection;
@@ -65,9 +65,9 @@ public class NetworkLoadableScene : RedObject
         if (connection is null)
             return;
 
-        connection.MessageReceived += ProcessNetworkMessage;
-        connection.Connected += HandleConnectionConnected;
-        connection.Disconnected += HandleConnectionDisconnected;
+        connection.OnMessageReceived += ProcessNetworkMessage;
+        connection.OnConnected += HandleConnectionConnected;
+        connection.OnDisconnected += HandleConnectionDisconnected;
     }
 
     public void SetScene(Scene? scene)

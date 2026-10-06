@@ -49,8 +49,8 @@ public class NetworkStatisticsCounter
             return;
 
         _connection = connection;
-        connection.SendDataRequested += OnSendData;
-        connection.DataReceived += OnData;
+        connection.OnSendData += HandleSendData;
+        connection.OnDataReceived += HandleDataReceived;
     }
 
     public void AddIncomingPacket(uint bytes)
@@ -78,14 +78,14 @@ public class NetworkStatisticsCounter
         PacketsOutPerSec = PacketsOutPerSec
     };
 
-    private void OnSendData(NetworkConnection connection, MemoryBuffer data,
+    private void HandleSendData(NetworkConnection connection, MemoryBuffer data,
         PacketType type, ref bool handled)
     {
         if (!handled)
             AddOutgoingPacket(data.Size);
     }
 
-    private void OnData(NetworkConnection connection, MemoryBuffer data, ref bool handled)
+    private void HandleDataReceived(NetworkConnection connection, MemoryBuffer data, ref bool handled)
     {
         AddIncomingPacket(data.Size);
     }

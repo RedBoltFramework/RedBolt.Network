@@ -44,10 +44,10 @@ public enum NetworkMessageId : uint
 public static class NetworkProtocol
 {
     /// <summary>Conservative limit for the size of the packet transmitted over underlying transport. Real limit may be higher.</summary>
-    /// <seealso cref="ReplicatedPeer.MaxPacketSize" />
+    /// <seealso cref="NetworkConnection.MaxMessageSize" />
     public const int MaxNetworkPacketSize = 1024;
     /// <summary>Maximum possible size of network message payload. Transport limitations are not considered. Real limit may be lower.</summary>
-    /// <seealso cref="ReplicatedPeer.MaxMessageSize" />
+    /// <seealso cref="NetworkConnection.MaxPayloadSize" />
     public const int MaxNetworkMessageSize = 0xFFFF;
 
     /// <summary>Max size of the message header (message id only).</summary>

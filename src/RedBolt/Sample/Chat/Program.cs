@@ -374,9 +374,9 @@ public sealed class Chat : Application
         if (_clientConnection is null)
         {
             _clientConnection = new DataChannelConnection();
-            _clientConnection.Connected += HandleClientConnected;
-            _clientConnection.Disconnected += HandleClientDisconnected;
-            _clientConnection.MessageReceived += HandleNetworkMessage;
+            _clientConnection.OnConnected += HandleClientConnected;
+            _clientConnection.OnDisconnected += HandleClientDisconnected;
+            _clientConnection.OnMessageReceived += HandleNetworkMessage;
         }
         if (!_clientConnection.IsDisconnected)
             return;
@@ -415,7 +415,7 @@ public sealed class Chat : Application
     private void HandleServerConnected(NetworkServer server, NetworkConnection connection)
     {
         _serverConnections.Add(new WeakReference<NetworkConnection>(connection));
-        connection.MessageReceived += HandleNetworkMessage;
+        connection.OnMessageReceived += HandleNetworkMessage;
     }
 
     private void HandleServerDisconnected(NetworkServer server, NetworkConnection connection)

@@ -4,6 +4,8 @@
 
 namespace RedBolt.Replica;
 
+using System.Text;
+
 using RedBolt.Container;
 using RedBolt.Core;
 using RedBolt.IO;
@@ -165,12 +167,12 @@ public class ClientReplica : ClientReplicaClock
             case NetworkMessageId.AddObjects:
             case NetworkMessageId.AddObjectsIncomplete:
             {
-                var reader = new LargeMessageReader(_buffer,
+                var reader = new LargeMessageReader(_inputBuffer,
                     NetworkMessageId.AddObjectsIncomplete, NetworkMessageId.AddObjects);
                 reader.OnMessage(messageId, messageData, fullMessageData =>
                 {
                     ProcessAddObjects(fullMessageData);
-                    _buffer.Clear();
+                    _inputBuffer.Clear();
                 });
                 return true;
             }
@@ -178,13 +180,13 @@ public class ClientReplica : ClientReplicaClock
             case NetworkMessageId.UpdateObjectsReliable:
             case NetworkMessageId.UpdateObjectsReliableIncomplete:
             {
-                var reader = new LargeMessageReader(_buffer,
+                var reader = new LargeMessageReader(_inputBuffer,
                     NetworkMessageId.UpdateObjectsReliableIncomplete,
                     NetworkMessageId.UpdateObjectsReliable);
                 reader.OnMessage(messageId, messageData, fullMessageData =>
                 {
                     ProcessUpdateObjectsReliable(fullMessageData);
-                    _buffer.Clear();
+                    _inputBuffer.Clear();
                 });
                 return true;
             }
@@ -407,7 +409,7 @@ public class ClientReplica : ClientReplicaClock
 
     private void SendObjectsFeedbackUnreliable(NetworkFrame feedbackFrame)
     {
-        using var writer = new MultiMessageWriter(Connection.Connection, _buffer2,
+        using var writer = new MultiMessageWriter(Connection.Connection, _outputBuffer, _debugInfoBuffer,
             NetworkMessageId.ObjectsFeedbackUnreliable, PacketType.UnreliableUnordered);
 
         var message = writer.Buffer;
@@ -437,6 +439,7 @@ public class ClientReplica : ClientReplicaClock
     private readonly List<MsgSceneClock> _pendingClockUpdates = [];
     private readonly HashSet<NetworkObject> _ownedObjects = [];
     private readonly VectorBuffer _componentBuffer = new();
-    private readonly VectorBuffer _buffer = new();
-    private readonly VectorBuffer _buffer2 = new();
+    private readonly VectorBuffer _inputBuffer = new();
+    private readonly VectorBuffer _outputBuffer = new();
+    private readonly StringBuilder _debugInfoBuffer = new();
 }

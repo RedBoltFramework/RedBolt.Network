@@ -4,8 +4,6 @@
 
 namespace RedBolt.Network;
 
-using System.Text;
-
 using RedBolt.Core;
 using RedBolt.IO;
 
@@ -16,44 +14,8 @@ public delegate void NetworkSendDataHandler(
 public delegate void NetworkMessageHandler(
     NetworkConnection connection, NetworkMessageId messageId, MemoryBuffer data, ref bool handled);
 public delegate void NetworkSendMessageHandler(
-    NetworkConnection connection, NetworkMessageId messageId, MemoryBuffer data, PacketType type, ref bool handled);
-
-/// <summary>RAII-style wrapper for building network messages.</summary>
-public sealed class NetworkMessageBuilder : IDisposable
-{
-    internal NetworkMessageBuilder(
-        NetworkConnection connection, PacketType type, VectorBuffer buffer, uint offset)
-    {
-        _connection = connection;
-        Type = type;
-        Buffer = buffer;
-        Offset = offset;
-    }
-
-    public bool IsValid => _connection is not null;
-
-    public void EndMessage()
-    {
-        if (Finished || !IsValid)
-            return;
-
-        _connection!.EndMessage(this);
-        Finished = true;
-    }
-
-    public void Dispose()
-    {
-        EndMessage();
-        GC.SuppressFinalize(this);
-    }
-
-    public VectorBuffer Buffer { get; }
-    public uint Offset { get; }
-    public bool Finished { get; private set; }
-    internal PacketType Type { get; }
-
-    private NetworkConnection? _connection;
-}
+    NetworkConnection connection, NetworkMessageId messageId, MemoryBuffer data, PacketType type,
+    string debugInfo, ref bool handled);
 
 public enum NetworkConnectionState
 {
@@ -65,11 +27,6 @@ public enum NetworkConnectionState
 
 public abstract class NetworkConnection : RedObject
 {
-    protected NetworkConnection()
-    {
-        _workQueue = Context.GetSubsystem<WorkQueue>()!;
-    }
-
     public abstract bool Connect(URL url);
 
     public virtual void Disconnect()
@@ -89,15 +46,13 @@ public abstract class NetworkConnection : RedObject
 
         var handled = eventData.Handled;
         if (!handled)
-            SendDataRequested?.Invoke(this, data, type, ref handled);
+            OnSendData?.Invoke(this, data, type, ref handled);
         return !handled;
     }
 
     public virtual bool SendMessage(NetworkMessageId messageId, MemoryBuffer data,
         PacketType type = PacketType.ReliableOrdered, string debugInfo = "")
     {
-        _debugInfo.Clear();
-        _debugInfo.Append(debugInfo);
         var eventData = new NetworkEvents.ClientSendMessageEvent
         {
             Connection = this,
@@ -109,7 +64,7 @@ public abstract class NetworkConnection : RedObject
 
         var handled = eventData.Handled;
         if (!handled)
-            SendMessageRequested?.Invoke(this, messageId, data, type, ref handled);
+            OnSendMessage?.Invoke(this, messageId, data, type, debugInfo, ref handled);
         if (handled)
             return false;
 
@@ -120,23 +75,17 @@ public abstract class NetworkConnection : RedObject
         return sent;
     }
 
-    public virtual uint MaxMessageSize => System.Math.Min(
-        (uint)NetworkProtocol.MaxNetworkMessageSize,
-        unchecked(_maxPacketSize - (uint)NetworkProtocol.NetworkMessageHeaderSize));
+    /// <summary>Maximum size of a raw network message, including the message header.</summary>
+    public virtual uint MaxMessageSize => NetworkProtocol.MaxNetworkPacketSize;
 
-    public virtual NetworkMessageBuilder BeginMessage(NetworkMessageId messageId,
-        PacketType type = PacketType.ReliableOrdered, string debugInfo = "")
+    /// <summary>Maximum size of a network message payload.</summary>
+    public uint MaxPayloadSize
     {
-        _debugInfo.Clear();
-        _debugInfo.Append(debugInfo);
-        _outgoing.WriteVLE((uint)messageId);
-        return new NetworkMessageBuilder(this, type, _outgoing, _outgoing.Position);
-    }
-
-    public virtual void EndMessage(NetworkMessageBuilder builder)
-    {
-        SendData(new MemoryBuffer(builder.Buffer), builder.Type);
-        builder.Buffer.Clear();
+        get
+        {
+            const uint headerSize = NetworkProtocol.NetworkMessageHeaderSize;
+            return System.Math.Max(headerSize, MaxMessageSize) - headerSize;
+        }
     }
 
     public string Address => _address;
@@ -144,21 +93,19 @@ public abstract class NetworkConnection : RedObject
     public NetworkConnectionState State => _state;
     public bool IsConnected => _state == NetworkConnectionState.Connected;
     public bool IsDisconnected => _state == NetworkConnectionState.Disconnected;
-    public uint MaxPacketSize { get => _maxPacketSize; set => _maxPacketSize = value; }
-    public StringBuilder DebugInfoBuffer => _debugInfo;
     public bool ProcessDataOnMainThread { get; set; } = true;
     public NetworkServer? Server => _server;
 
-    public event Action<NetworkConnection>? Connected;
-    public event Action<NetworkConnection>? Disconnected;
-    public event NetworkDataHandler? DataReceived;
-    public event NetworkMessageHandler? MessageReceived;
-    public event NetworkSendDataHandler? SendDataRequested;
-    public event NetworkSendMessageHandler? SendMessageRequested;
+    public event Action<NetworkConnection>? OnConnected;
+    public event Action<NetworkConnection>? OnDisconnected;
+    public event NetworkDataHandler? OnDataReceived;
+    public event NetworkMessageHandler? OnMessageReceived;
+    public event NetworkSendDataHandler? OnSendData;
+    public event NetworkSendMessageHandler? OnSendMessage;
 
-    public virtual void OnConnected()
+    public virtual void HandleConnected()
     {
-        Connected?.Invoke(this);
+        OnConnected?.Invoke(this);
         var eventData = new NetworkEvents.ClientConnectedEvent
         {
             Connection = this,
@@ -168,9 +115,9 @@ public abstract class NetworkConnection : RedObject
         SendEvent(ref eventData);
     }
 
-    public virtual void OnDisconnected()
+    public virtual void HandleDisconnected()
     {
-        Disconnected?.Invoke(this);
+        OnDisconnected?.Invoke(this);
         var eventData = new NetworkEvents.ClientDisconnectedEvent
         {
             Connection = this,
@@ -180,7 +127,7 @@ public abstract class NetworkConnection : RedObject
         SendEvent(ref eventData);
     }
 
-    public virtual bool OnData(MemoryBuffer message)
+    public virtual bool HandleDataReceived(MemoryBuffer message)
     {
         var messageId = (NetworkMessageId)message.ReadVLE();
         var eventData = new NetworkEvents.ClientMessageEvent
@@ -193,11 +140,11 @@ public abstract class NetworkConnection : RedObject
 
         var handled = eventData.Handled;
         if (!handled)
-            MessageReceived?.Invoke(this, messageId, message, ref handled);
-        return handled || OnMessage(messageId, message);
+            OnMessageReceived?.Invoke(this, messageId, message, ref handled);
+        return handled || HandleMessageReceived(messageId, message);
     }
 
-    public virtual bool OnMessage(NetworkMessageId messageId, MemoryBuffer message) => false;
+    public virtual bool HandleMessageReceived(NetworkMessageId messageId, MemoryBuffer message) => false;
 
     protected void NotifyDisconnecting()
     {
@@ -209,25 +156,27 @@ public abstract class NetworkConnection : RedObject
         _server = server;
     }
 
-    protected void DoOnConnected()
+    protected void DispatchConnected()
     {
-        _workQueue.PostTaskForMainThread(() =>
+        var workQueue = Context.GetSubsystem<WorkQueue>()!;
+        workQueue.PostTaskForMainThread(() =>
         {
             _state = NetworkConnectionState.Connected;
-            OnConnected();
+            HandleConnected();
         });
     }
 
-    protected void DoOnDisconnected()
+    protected void DispatchDisconnected()
     {
-        _workQueue.PostTaskForMainThread(() =>
+        var workQueue = Context.GetSubsystem<WorkQueue>()!;
+        workQueue.PostTaskForMainThread(() =>
         {
             _state = NetworkConnectionState.Disconnected;
-            OnDisconnected();
+            HandleDisconnected();
         });
     }
 
-    protected void DoOnData(MemoryBuffer message)
+    protected void DispatchDataReceived(MemoryBuffer message)
     {
         if (!ProcessDataOnMainThread || WorkQueue.IsMainThread())
         {
@@ -236,17 +185,17 @@ public abstract class NetworkConnection : RedObject
 
             var handled = eventData.Handled;
             if (!handled)
-                DataReceived?.Invoke(this, message, ref handled);
+                OnDataReceived?.Invoke(this, message, ref handled);
             if (!handled)
-                OnData(message);
+                HandleDataReceived(message);
         }
         else
             QueueIncomingPacket(message);
     }
 
-    protected void DoOnMessage(NetworkMessageId messageId, MemoryBuffer message)
+    protected void DispatchMessageReceived(NetworkMessageId messageId, MemoryBuffer message)
     {
-        OnMessage(messageId, message);
+        HandleMessageReceived(messageId, message);
     }
 
     protected NetworkConnectionState _state = NetworkConnectionState.Disconnected;
@@ -262,7 +211,7 @@ public abstract class NetworkConnection : RedObject
             if (_incoming.Count > 1)
                 return;
         }
-        _workQueue.PostDelayedTaskForMainThread(ProcessQueuedPackets);
+        Context.GetSubsystem<WorkQueue>()!.PostDelayedTaskForMainThread(ProcessQueuedPackets);
     }
 
     private void ProcessQueuedPackets()
@@ -275,7 +224,7 @@ public abstract class NetworkConnection : RedObject
         foreach (var packet in _incomingBack)
         {
             using var message = new MemoryBuffer(packet);
-            DoOnData(message);
+            DispatchDataReceived(message);
         }
 
         lock (_mutex)
@@ -325,13 +274,10 @@ public abstract class NetworkConnection : RedObject
         destination.Write(data);
     }
 
-    private uint _maxPacketSize = NetworkProtocol.MaxNetworkPacketSize;
     private readonly VectorBuffer _outgoing = new();
-    private readonly StringBuilder _debugInfo = new();
     private NetworkServer? _server;
 
     private readonly object _mutex = new();
-    private readonly WorkQueue _workQueue;
     private List<VectorBuffer> _incoming = [];
     private List<VectorBuffer> _incomingBack = [];
     private readonly List<VectorBuffer> _buffers = [];

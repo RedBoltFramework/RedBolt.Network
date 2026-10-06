@@ -5,6 +5,7 @@
 namespace RedBolt.Replica;
 
 using System.Diagnostics;
+using System.Text;
 
 using RedBolt.Core;
 using RedBolt.IO;
@@ -417,7 +418,7 @@ public sealed class ClientReplicationState : ClientSynchronizationState
     public void SendMessages(NetworkFrame currentFrame, SharedReplicationState sharedState)
     {
         base.SendMessages();
-        if (!IsSynchronized)
+        if (!IsSynchronized || !Peer.Connection.IsConnected)
             return;
 
         SendRemoveObjects();
@@ -473,7 +474,7 @@ public sealed class ClientReplicationState : ClientSynchronizationState
 
     private void SendRemoveObjects()
     {
-        using var writer = new MultiMessageWriter(Peer.Connection, _buffer,
+        using var writer = new MultiMessageWriter(Peer.Connection, _buffer, _debugInfoBuffer,
             NetworkMessageId.RemoveObjects, PacketType.ReliableOrdered);
         var message = writer.Buffer;
         message.WriteInt64(CurrentFrame.Value);
@@ -489,7 +490,7 @@ public sealed class ClientReplicationState : ClientSynchronizationState
 
     private void SendAddObjects()
     {
-        using var writer = new LargeMessageWriter(Peer.Connection, _buffer,
+        using var writer = new LargeMessageWriter(Peer.Connection, _buffer, _debugInfoBuffer,
             NetworkMessageId.AddObjectsIncomplete, NetworkMessageId.AddObjects);
         var message = writer.Buffer;
         message.WriteInt64(CurrentFrame.Value);
@@ -516,7 +517,7 @@ public sealed class ClientReplicationState : ClientSynchronizationState
 
     private void SendUpdateObjectsReliable(SharedReplicationState sharedState)
     {
-        using var writer = new LargeMessageWriter(Peer.Connection, _buffer,
+        using var writer = new LargeMessageWriter(Peer.Connection, _buffer, _debugInfoBuffer,
             NetworkMessageId.UpdateObjectsReliableIncomplete,
             NetworkMessageId.UpdateObjectsReliable);
         var message = writer.Buffer;
@@ -545,7 +546,7 @@ public sealed class ClientReplicationState : ClientSynchronizationState
     private void SendUpdateObjectsUnreliable(NetworkFrame currentFrame,
         SharedReplicationState sharedState)
     {
-        using var writer = new MultiMessageWriter(Peer.Connection, _buffer,
+        using var writer = new MultiMessageWriter(Peer.Connection, _buffer, _debugInfoBuffer,
             NetworkMessageId.UpdateObjectsUnreliable, PacketType.UnreliableUnordered);
         var message = writer.Buffer;
         message.WriteInt64(CurrentFrame.Value);
@@ -601,6 +602,7 @@ public sealed class ClientReplicationState : ClientSynchronizationState
     private readonly List<PendingObjectUpdate> _pendingUpdatedObjects = [];
     private readonly VectorBuffer _componentBuffer = new();
     private readonly VectorBuffer _buffer = new();
+    private readonly StringBuilder _debugInfoBuffer = new();
 }
 
 /// <summary>Server part of the ReplicationManager subsystem.</summary>

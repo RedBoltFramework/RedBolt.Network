@@ -18,12 +18,12 @@ public interface INetworkSerializableMessage
 /// <summary>Helper to send a large message as multiple small messages.</summary>
 public sealed class LargeMessageWriter : IDisposable
 {
-    public LargeMessageWriter(NetworkConnection connection, VectorBuffer buffer,
+    public LargeMessageWriter(NetworkConnection connection, VectorBuffer buffer, StringBuilder debugInfo,
         NetworkMessageId incompleteMessageId, NetworkMessageId lastMessageId)
     {
         _connection = connection;
         _buffer = buffer;
-        _debugInfo = connection.DebugInfoBuffer;
+        _debugInfo = debugInfo;
         _incompleteMessageId = incompleteMessageId;
         _lastMessageId = lastMessageId;
 
@@ -44,14 +44,14 @@ public sealed class LargeMessageWriter : IDisposable
         if (!_discarded)
         {
             var payload = _buffer.Buffer;
-            var maxMessageSize = _connection.MaxMessageSize;
+            var maxMessageSize = _connection.MaxPayloadSize;
             var numChunks = (_buffer.Size + maxMessageSize - 1) / maxMessageSize;
             for (var i = 0u; i < numChunks; ++i)
             {
                 var isLastChunk = i + 1 == numChunks;
                 var messageId = isLastChunk ? _lastMessageId : _incompleteMessageId;
                 var chunkOffset = i * maxMessageSize;
-                var chunkSize = isLastChunk ? _buffer.Size % maxMessageSize : maxMessageSize;
+                var chunkSize = isLastChunk ? _buffer.Size - chunkOffset : maxMessageSize;
                 var chunkData = payload.Slice(checked((int)chunkOffset), checked((int)chunkSize));
                 var chunkDebugInfo = isLastChunk ? _debugInfo.ToString() : string.Empty;
                 using var memory = new MemoryBuffer(chunkData.ToArray());
@@ -121,12 +121,12 @@ public class LargeMessageReader
 /// <summary>Helper to send multiple messages of one type with a shared header.</summary>
 public sealed class MultiMessageWriter : IDisposable
 {
-    public MultiMessageWriter(NetworkConnection connection, VectorBuffer buffer,
+    public MultiMessageWriter(NetworkConnection connection, VectorBuffer buffer, StringBuilder debugInfo,
         NetworkMessageId messageId, PacketType packetType)
     {
         _connection = connection;
         _buffer = buffer;
-        _debugInfo = connection.DebugInfoBuffer;
+        _debugInfo = debugInfo;
         _messageId = messageId;
         _packetType = packetType;
 
@@ -144,14 +144,14 @@ public sealed class MultiMessageWriter : IDisposable
 
         _headerSize = _buffer.Size;
         _nextPayloadOffset = _headerSize.Value;
-        Debug.Assert(_headerSize.Value <= _connection.MaxMessageSize);
+        Debug.Assert(_headerSize.Value <= _connection.MaxPayloadSize);
     }
 
     public void CompletePayload()
     {
         _headerSize ??= 0;
 
-        if (_buffer.Size > _connection.MaxMessageSize && _nextPayloadOffset != _headerSize)
+        if (_buffer.Size > _connection.MaxPayloadSize && _nextPayloadOffset != _headerSize)
         {
             SendPreviousPayloads();
 
@@ -213,8 +213,14 @@ public static class NetworkMessageUtils
         PacketType messageType = PacketType.ReliableOrdered)
         where T : struct, INetworkSerializableMessage
     {
-        using var builder = connection.BeginMessage(messageId, messageType, message.ToString() ?? string.Empty);
-        message.Save(builder.Buffer);
-        builder.EndMessage();
+        var buffer = t_buffer ??= new VectorBuffer();
+        buffer.Clear();
+        message.Save(buffer);
+
+        using var memory = new MemoryBuffer(buffer);
+        connection.SendMessage(messageId, memory, messageType, message.ToString() ?? string.Empty);
     }
+
+    [ThreadStatic]
+    private static VectorBuffer? t_buffer;
 }

@@ -76,11 +76,11 @@ public partial class DataChannelConnection : NetworkConnection
         }
 
         var dataSize = data.Size - data.Position;
-        if (dataSize > MaxMessageSize + NetworkProtocol.NetworkMessageHeaderSize)
+        if (dataSize > MaxMessageSize)
         {
             RedBolt.Logging.Log.GetLogger().LogError(
                 "DataChannel tried to send {DataSize} bytes, which is more than max allowed {MaxSize} bytes of data per message.",
-                dataSize, MaxMessageSize + NetworkProtocol.NetworkMessageHeaderSize);
+                dataSize, MaxMessageSize);
             return false;
         }
 
@@ -96,7 +96,7 @@ public partial class DataChannelConnection : NetworkConnection
     }
 
     public override uint MaxMessageSize => _state == NetworkConnectionState.Connected
-        ? unchecked(MaxPacketSize - (uint)NetworkProtocol.NetworkMessageHeaderSize)
+        ? base.MaxMessageSize
         : 0;
 
     public void SetIceServers(IEnumerable<string> servers)
@@ -122,7 +122,7 @@ public partial class DataChannelConnection : NetworkConnection
     internal static void OnBrowserConnected(int id)
     {
         if (GetConnection(id) is { _state: NetworkConnectionState.Connecting } connection)
-            connection.DoOnConnected();
+            connection.DispatchConnected();
     }
 
     internal static void OnBrowserData(int id, string payload)
@@ -132,7 +132,7 @@ public partial class DataChannelConnection : NetworkConnection
         try
         {
             using var data = new MemoryBuffer(Convert.FromBase64String(payload));
-            connection.DoOnData(data);
+            connection.DispatchDataReceived(data);
         }
         catch (FormatException exception)
         {
@@ -149,7 +149,7 @@ public partial class DataChannelConnection : NetworkConnection
         if (!string.IsNullOrEmpty(error))
             RedBolt.Logging.Log.GetLogger().LogError("Browser WebRTC connection failed: {Error}", error);
         connection._state = NetworkConnectionState.Disconnecting;
-        connection.DoOnDisconnected();
+        connection.DispatchDisconnected();
     }
 
     private static DataChannelConnection? GetConnection(int id)

@@ -557,9 +557,9 @@ public sealed class WebRTCSTUN : Application
             return;
         _clientConnection = new DataChannelConnection();
         _clientConnection.SetIceServers(IceServers);
-        _clientConnection.Connected += HandleClientConnected;
-        _clientConnection.Disconnected += HandleClientDisconnected;
-        _clientConnection.MessageReceived += HandleNetworkMessage;
+        _clientConnection.OnConnected += HandleClientConnected;
+        _clientConnection.OnDisconnected += HandleClientDisconnected;
+        _clientConnection.OnMessageReceived += HandleNetworkMessage;
     }
 
     private void HandleServerListenStart()
@@ -575,7 +575,7 @@ public sealed class WebRTCSTUN : Application
         var clientId = _nextClientId++;
         _serverConnections.Add(new WeakReference<NetworkConnection>(connection));
         _serverClientIds.Add(clientId);
-        connection.MessageReceived += HandleNetworkMessage;
+        connection.OnMessageReceived += HandleNetworkMessage;
 
         if (connection is DataChannelConnection dataChannelConnection)
         {
