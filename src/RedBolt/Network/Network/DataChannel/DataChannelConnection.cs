@@ -164,6 +164,7 @@ public partial class DataChannelConnection : NetworkConnection
         _state = NetworkConnectionState.Connecting;
         _webSocket = webSocket;
         _webSocketWasOpened = server is not null;
+        _serverChannelsCreated = false;
         EnsureSelfHandle();
 
         using var iceServers = new NativeUtf8StringArray(_iceServers);
@@ -190,18 +191,23 @@ public partial class DataChannelConnection : NetworkConnection
         RtcSetLocalDescriptionCallback(_peer, LocalDescriptionCallbackPointer);
         RtcSetLocalCandidateCallback(_peer, LocalCandidateCallbackPointer);
 
-        if (server is not null)
-            CreateServerDataChannels(userData);
-
         RtcSetDataChannelCallback(_peer, DataChannelCallbackPointer);
         RtcSetUserPointer(_webSocket, userData);
         RtcSetOpenCallback(_webSocket, WebSocketOpenCallbackPointer);
         RtcSetMessageCallback(_webSocket, MessageCallbackPointer);
         RtcSetClosedCallback(_webSocket, WebSocketClosedCallbackPointer);
+
+        // The channels start the offer. A wss:// socket is not open yet, then the open callback makes them.
+        if (server is not null && RtcIsOpen(_webSocket))
+            CreateServerDataChannels(userData);
     }
 
     private void CreateServerDataChannels(nint userData)
     {
+        // The open callback of the socket and InitializeFromSocket can both come here
+        if (Interlocked.Exchange(ref _serverChannelsCreated, true))
+            return;
+
         _dataChannels[(int)PacketType.UnreliableUnordered] = CreateDataChannel(
             "uu", unordered: true, unreliable: true);
         _dataChannels[(int)PacketType.ReliableUnordered] = CreateDataChannel(
@@ -481,8 +487,11 @@ public partial class DataChannelConnection : NetworkConnection
         DataChannelInterop.Guard(() =>
         {
             var self = DataChannelInterop.GetTarget<DataChannelConnection>(userData);
-            if (self is not null)
-                self._webSocketWasOpened = true;
+            if (self is null)
+                return;
+            self._webSocketWasOpened = true;
+            if (self.Server is not null)
+                self.CreateServerDataChannels(userData);
         });
 
     private static void HandleWebSocketClosed(int webSocket, nint userData) =>
@@ -521,6 +530,7 @@ public partial class DataChannelConnection : NetworkConnection
     private readonly int[] _dataChannels = new int[4];
     private readonly Dictionary<int, int> _dataChannelIndices = [];
     private bool _webSocketWasOpened;
+    private bool _serverChannelsCreated;
     private readonly List<string> _iceServers = [];
     private ushort _portRangeBegin = 1024;
     private ushort _portRangeEnd = 65535;
