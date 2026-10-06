@@ -41,10 +41,11 @@ public sealed class LargeMessageWriter : IDisposable
 
     public void Dispose()
     {
-        if (!_discarded)
+        // The size is 0 when the connection is not connected: there is nothing to send to
+        var maxMessageSize = _connection.MaxPayloadSize;
+        if (!_discarded && maxMessageSize != 0)
         {
             var payload = _buffer.Buffer;
-            var maxMessageSize = _connection.MaxPayloadSize;
             var numChunks = System.Math.Max(1u, (_buffer.Size + maxMessageSize - 1) / maxMessageSize);
             for (var i = 0u; i < numChunks; ++i)
             {
@@ -141,7 +142,7 @@ public sealed class MultiMessageWriter : IDisposable
 
         _headerSize = _buffer.Size;
         _nextPayloadOffset = _headerSize.Value;
-        Debug.Assert(_headerSize.Value <= _connection.MaxPayloadSize);
+        Debug.Assert(_connection.MaxPayloadSize == 0 || _headerSize.Value <= _connection.MaxPayloadSize);
     }
 
     public void CompletePayload()
