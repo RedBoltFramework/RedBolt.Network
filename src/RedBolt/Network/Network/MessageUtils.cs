@@ -16,7 +16,7 @@ public interface INetworkSerializableMessage
 }
 
 /// <summary>Helper to send a large message as multiple small messages.</summary>
-public sealed class LargeMessageWriter : IDisposable
+public ref struct LargeMessageWriter
 {
     public LargeMessageWriter(NetworkConnection connection, VectorBuffer buffer, StringBuilder debugInfo,
         NetworkMessageId incompleteMessageId, NetworkMessageId lastMessageId)
@@ -62,7 +62,6 @@ public sealed class LargeMessageWriter : IDisposable
             }
         }
         _buffer.Clear();
-        GC.SuppressFinalize(this);
     }
 
     private readonly NetworkConnection _connection;
@@ -74,7 +73,7 @@ public sealed class LargeMessageWriter : IDisposable
 }
 
 /// <summary>Helper to reassemble large messages.</summary>
-public class LargeMessageReader
+public readonly struct LargeMessageReader
 {
     public LargeMessageReader(VectorBuffer buffer,
         NetworkMessageId incompleteMessageId, NetworkMessageId lastMessageId)
@@ -117,7 +116,7 @@ public class LargeMessageReader
 }
 
 /// <summary>Helper to send multiple messages of one type with a shared header.</summary>
-public sealed class MultiMessageWriter : IDisposable
+public ref struct MultiMessageWriter
 {
     public MultiMessageWriter(NetworkConnection connection, VectorBuffer buffer, StringBuilder debugInfo,
         NetworkMessageId messageId, PacketType packetType)
@@ -174,7 +173,6 @@ public sealed class MultiMessageWriter : IDisposable
             SendPreviousPayloads();
         _buffer.Clear();
         _debugInfo.Clear();
-        GC.SuppressFinalize(this);
     }
 
     private void SendPreviousPayloads()
