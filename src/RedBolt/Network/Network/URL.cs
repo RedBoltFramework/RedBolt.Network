@@ -10,8 +10,9 @@ using System.Text.RegularExpressions;
 
 public struct URL
 {
+    // The host is an IPv6 address in brackets, or a text without a colon
     private static readonly Regex UrlRegex = new(
-        @"^(([^:/?#]+)://)?((([^:/?#@]+)(:([^:/?#@]+))?@)?([^/?#:]*)(:([0-9]+))?)?(/([^?#]*))?(\?([^#]*))?(#(.*))?",
+        @"^(([^:/?#]+)://)?((([^:/?#@]+)(:([^:/?#@]+))?@)?(\[[^\]/?#]*\]|[^/?#:]*)(:([0-9]+))?)?(/([^?#]*))?(\?([^#]*))?(#(.*))?",
         RegexOptions.CultureInvariant);
 
     public URL()
@@ -190,12 +191,15 @@ public struct URL
         if (!match.Success || match.Length != url.Length || match.Groups.Count != 17)
             return;
 
+        // A port that does not fit makes the URL invalid: a cast would give another port
+        var portText = match.Groups[10].Value;
+        if (portText.Length != 0 && !ushort.TryParse(portText, NumberStyles.None, CultureInfo.InvariantCulture, out Port))
+            return;
+
         Scheme = match.Groups[2].Value;
         User = match.Groups[5].Value;
         Password = match.Groups[7].Value;
         Host = match.Groups[8].Value;
-        if (int.TryParse(match.Groups[10].Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var port))
-            Port = unchecked((ushort)port);
         if (Port == 0)
             Port = GetDefaultPort(Scheme);
         Path = match.Groups[11].Value;
