@@ -300,6 +300,10 @@ public partial class DataChannelConnection : NetworkConnection
         CloseWebSocket();
         ClosePeer();
         SetServer(null);
+
+        // The connection did not connect, so no disconnected event sets the state.
+        if (!notifyCallbacks)
+            _state = NetworkConnectionState.Disconnected;
     }
 
     private unsafe void OnDataChannelReceived(nint message, int size)
