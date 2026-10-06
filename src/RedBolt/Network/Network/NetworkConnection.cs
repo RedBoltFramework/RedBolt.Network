@@ -272,7 +272,7 @@ public abstract class NetworkConnection : RedObject
     private WorkQueue GetWorkQueue() => _workQueue ?? Context.GetSubsystem<WorkQueue>()!;
 
     // Same as upstream WorkQueue::RunTaskOnMainThread: run now on the main thread, otherwise run between frames.
-    private void RunTaskOnMainThread(Action task)
+    protected void RunTaskOnMainThread(Action task)
     {
         if (WorkQueue.IsMainThread())
             task();

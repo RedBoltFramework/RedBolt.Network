@@ -177,6 +177,7 @@ public partial class DataChannelConnection : NetworkConnection
         _webSocket = webSocket;
         _webSocketWasOpened = server is not null;
         _serverChannelsCreated = false;
+        _answerReceived = false;
         EnsureSelfHandle();
 
         using var iceServers = new NativeUtf8StringArray(_iceServers);
@@ -320,6 +321,7 @@ public partial class DataChannelConnection : NetworkConnection
         if (type is "offer" or "answer")
         {
             var sdp = data.ReadString();
+            _answerReceived = true;
             RtcSetRemoteDescription(_peer, DataChannelInterop.Utf8(sdp), DataChannelInterop.Utf8(type));
         }
         else if (type == "candidate")
@@ -510,7 +512,13 @@ public partial class DataChannelConnection : NetworkConnection
         DataChannelInterop.Guard(() =>
         {
             var self = DataChannelInterop.GetTarget<DataChannelConnection>(userData);
-            if (self is not null && !self._webSocketWasOpened)
+            if (self is null)
+                return;
+
+            // The client closes the socket when its channels are open. Without an answer they cannot open.
+            if (self.Server is not null && !self._answerReceived)
+                self.RunTaskOnMainThread(self.Disconnect);
+            else if (!self._webSocketWasOpened)
             {
                 self.OnDataChannelDisconnected(0, false);
                 RedBolt.Logging.Log.GetLogger().LogDebug(
@@ -543,6 +551,7 @@ public partial class DataChannelConnection : NetworkConnection
     private readonly Dictionary<int, int> _dataChannelIndices = [];
     private bool _webSocketWasOpened;
     private bool _serverChannelsCreated;
+    private bool _answerReceived;
     private readonly List<string> _iceServers = [];
     private ushort _portRangeBegin = 1024;
     private ushort _portRangeEnd = 65535;
