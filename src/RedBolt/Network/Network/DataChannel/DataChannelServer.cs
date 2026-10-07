@@ -111,6 +111,8 @@ public partial class DataChannelServer : NetworkServer
 
     public void SetBindAddress(string address) => _bindAddress = address;
 
+    public void SetPublicAddress(string address) => _publicAddress = address;
+
     public void SetMtu(nuint mtu) => _mtu = checked((int)mtu);
 
     public override void Dispose()
@@ -135,6 +137,7 @@ public partial class DataChannelServer : NetworkServer
         connection.SetIceTransportPolicy(_iceTransportPolicy);
         if (!string.IsNullOrEmpty(_bindAddress))
             connection.SetBindAddress(_bindAddress);
+        connection.SetPublicAddress(_publicAddress);
         if (_mtu > 0)
             connection.SetMtu(unchecked((nuint)_mtu));
         connection.InitializeFromSocket(this, webSocket);
@@ -173,6 +176,7 @@ public partial class DataChannelServer : NetworkServer
     private bool _enableIceUdpMux;
     private RtcTransportPolicy _iceTransportPolicy = RtcTransportPolicy.RtcTransportPolicyAll;
     private string _bindAddress = string.Empty;
+    private string _publicAddress = string.Empty;
     private int _mtu;
     private GCHandle _selfHandle;
 }

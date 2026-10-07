@@ -33,6 +33,7 @@ public partial class DataChannelServer : NetworkServer
     public void SetPortRange(ushort begin, ushort end) { }
     public void SetIceUdpMux(bool enable) { }
     public void SetBindAddress(string address) { }
+    public void SetPublicAddress(string address) { }
     public void SetMtu(nuint mtu) { }
 }
 #endif

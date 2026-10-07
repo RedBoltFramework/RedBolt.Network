@@ -143,6 +143,8 @@ public partial class DataChannelConnection : NetworkConnection
 
     public void SetBindAddress(string address) => _bindAddress = address;
 
+    public void SetPublicAddress(string address) => _publicAddress = address;
+
     public void SetMtu(nuint mtu) => _mtu = checked((int)mtu);
 
     /// <summary>
@@ -353,11 +355,49 @@ public partial class DataChannelConnection : NetworkConnection
         if (_webSocket < 0)
             return;
 
+        SendCandidateMessage(candidate, mid);
+
+        // A host behind NAT also sends one candidate with its public address.
+        if (_publicCandidateSent || string.IsNullOrEmpty(_publicAddress))
+            return;
+        var publicCandidate = WithPublicAddress(candidate, _publicAddress);
+        if (publicCandidate is null)
+            return;
+        _publicCandidateSent = true;
+        SendCandidateMessage(publicCandidate, mid);
+    }
+
+    private void SendCandidateMessage(string candidate, string mid)
+    {
         using var message = new VectorBuffer();
         message.WriteString("candidate");
         message.WriteString(candidate);
         message.WriteString(mid);
         RtcSendMessage(_webSocket, message.Buffer, checked((int)message.Size));
+    }
+
+    /// <summary>
+    /// Returns the candidate with its address replaced by the public address, or null if the
+    /// candidate is not an IPv4 UDP host candidate. The foundation changes, so the candidate
+    /// stays distinct. The candidate has the form "candidate:F C UDP PRIO IP PORT typ host ...".
+    /// </summary>
+    public static string? WithPublicAddress(string candidate, string address)
+    {
+        var fields = candidate.Split(' ');
+        if (fields.Length < 8 ||
+            !fields[2].Equals("UDP", StringComparison.OrdinalIgnoreCase) ||
+            fields[6] != "typ" || fields[7] != "host" ||
+            !System.Net.IPAddress.TryParse(fields[4], out var ip) ||
+            ip.AddressFamily != System.Net.Sockets.AddressFamily.InterNetwork)
+            return null;
+
+        const string prefix = "candidate:";
+        var index = fields[0].IndexOf(prefix, StringComparison.Ordinal);
+        if (index < 0)
+            return null;
+        fields[0] = string.Concat(fields[0].AsSpan(0, index), prefix, "pub");
+        fields[4] = address;
+        return string.Join(' ', fields);
     }
 
     private void EnsureSelfHandle()
@@ -562,6 +602,8 @@ public partial class DataChannelConnection : NetworkConnection
     private bool _enableIceUdpMux;
     private RtcTransportPolicy _iceTransportPolicy = RtcTransportPolicy.RtcTransportPolicyAll;
     private string _bindAddress = string.Empty;
+    private string _publicAddress = string.Empty;
+    private bool _publicCandidateSent;
     private int _mtu;
     private GCHandle _selfHandle;
 }
