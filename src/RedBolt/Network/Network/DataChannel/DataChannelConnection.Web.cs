@@ -22,6 +22,9 @@ public partial class DataChannelConnection : NetworkConnection
             Connections[_id] = new WeakReference<DataChannelConnection>(this);
     }
 
+    /// <summary>Has no effect in a browser: the browser WebSocket always checks the certificate.</summary>
+    public bool SkipTlsVerification { get; set; }
+
     public override bool Connect(URL url)
     {
         if (!IsDisconnected)

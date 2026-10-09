@@ -22,6 +22,9 @@ public partial class DataChannelConnection : NetworkConnection
         Array.Fill(_dataChannels, InvalidId);
     }
 
+    /// <summary>Tells whether <see cref="Connect"/> skips the check of the server certificate of a <c>wss</c> URL. For a local test with a self-signed certificate.</summary>
+    public bool SkipTlsVerification { get; set; }
+
     public override bool Connect(URL url)
     {
         if (!IsDisconnected)
@@ -37,7 +40,7 @@ public partial class DataChannelConnection : NetworkConnection
 
         using var config = new RtcWsConfiguration
         {
-            DisableTlsVerification = finalUrl.Scheme == "ws"
+            DisableTlsVerification = finalUrl.Scheme == "ws" || SkipTlsVerification
         };
         var webSocket = RtcCreateWebSocketEx(DataChannelInterop.Utf8(finalUrl.ToString()), config);
         if (webSocket < 0)
