@@ -1,6 +1,6 @@
 # RedBolt.Network NuGet packages
 
-RedBolt.Network versions independently from RedBolt, but every package records exact RedBolt and SharpCpp package versions. Produce the matching base package set first in `<build root>/package/nuget/RedBolt/out` (`<build root>` is the monorepo `build/` inside the monorepo and the repository's own `build/` standalone; `REDBOLT_BUILD_ROOT` overrides it).
+RedBolt.Network versions independently from RedBolt, but every package records exact RedBolt and SharpCpp package versions. Produce the matching base package set first in `<build root>/package/nuget/RedBolt/out` (`<build root>` is the `build/` directory beside the engine directory; the packaging script reads `REDBOLT_BUILD_ROOT` to override it).
 
 Create Linux x64 packages from Release outputs, building the add-on first:
 
