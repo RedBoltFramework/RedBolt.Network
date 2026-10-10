@@ -23,7 +23,6 @@ For a copy, see <https://opensource.org/licenses/MIT> or the accompanying LICENS
     <RedBoltExternalWebNativeEnabled>false</RedBoltExternalWebNativeEnabled>
     <RedBoltExternalNativeTargetPrefix>redbolt-network</RedBoltExternalNativeTargetPrefix>
     <RedBoltExternalEnabledNativeModules>LIBDATACHANNEL</RedBoltExternalEnabledNativeModules>
-    <RedBoltExternalDesktopResourceRoot>$(RedBoltRoot)</RedBoltExternalDesktopResourceRoot>
     <RedBoltWebExtensionScript>$(RedBoltNetworkRoot)/src/RedBolt/Sample/Web/wwwroot/extension.js</RedBoltWebExtensionScript>
   </PropertyGroup>
   <Import Project="$(RedBoltRoot)/eng/RedBolt.ModuleBuild/Directory.Build.props" />
